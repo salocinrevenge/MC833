@@ -42,7 +42,14 @@ void falar_com_server(int fd){
     
         printf("client: received '%s'\n",received);
 
+        if (strcmp(received, "Recebido '8', encerrando acesso.") == 0) {
+            printf("Encerrando conexão com o servidor.\n");
+            break;
+        }
+
         fgets(to_send, MAXDATASIZE, stdin);
+        to_send[strcspn(to_send, "\n")] = '\0';
+
         if (send(fd, &to_send, MAXDATASIZE , 0) == -1)
             perror("send");
 

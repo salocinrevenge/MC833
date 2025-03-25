@@ -42,6 +42,28 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+void option1(int new_fd)
+{
+    int valid = 0;
+    while(valid){
+        const char *msg = "Você escolheu a opção 1: Cadastrar um novo filme.\n\
+        Por favor, digite o nome do filme que deseja cadastrar.\n";
+        if (send(new_fd, msg, strlen(msg), 0) == -1)
+            perror("send");
+
+        int numbytes = 0;
+        char mensagem_recebida[MAXDATASIZE];
+        if ((numbytes = recv(new_fd, mensagem_recebida, MAXDATASIZE, 0)) == -1)
+            perror("recv");
+        
+
+
+    }
+    
+
+    
+}
+
 int atender(int new_fd)
 {
     const char *msg = "Olá, cliente! Você se conectou ao servidor com sucesso!\n\
@@ -59,18 +81,23 @@ int atender(int new_fd)
 
     
     int opcode = 0;
+    char resposta[MAXDATASIZE*2];
+
     while(opcode != 8)
     {
-        printf("inicio do loop, vou receber algo\n");
+        printf("server: waiting for client message...\n");
         int numbytes = 0;
         char mensagem_recebida[MAXDATASIZE];
         if ((numbytes = recv(new_fd, mensagem_recebida, MAXDATASIZE, 0)) == -1)
             perror("recv");
-        printf("recebi algo de tamanho %d\n", numbytes);
+
+        if (numbytes == 0) {
+            printf("client disconnected\n");
+            break;
+        }
         mensagem_recebida[numbytes] = '\0'; // coloca um fim no buffer
         printf("server: received '%s'\n", mensagem_recebida);
-        
-        char resposta[MAXDATASIZE*2];
+        memset(resposta, 0, sizeof(resposta)); // anula a resposta
         snprintf(resposta, sizeof(resposta), "recebido: %s", mensagem_recebida);     // adiciona cabeçalho na resposta
 
         // tenta obter um numero de resposta logo no começo da string. Se não conseguir envia uma mensagem de erro
@@ -87,36 +114,89 @@ int atender(int new_fd)
         {
             case 1:
             // Cadastrar um novo filme
+            option1(new_fd);
+
             break;
             case 2:
             // Adicionar um novo gênero a um filme
+
+            strncpy(resposta, "Recebido '2', Adicionando genero de filme.", sizeof(resposta) - 1);
+            resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
+
+            if (send(new_fd, resposta, strlen(resposta), 0) == -1)
+                    perror("send");
+
             break;
             case 3:
             // Remover um filme pelo identificador
+
+            strncpy(resposta, "Recebido '3', Removendo um filme pelo identificador.", sizeof(resposta) - 1);
+            resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
+
+            if (send(new_fd, resposta, strlen(resposta), 0) == -1)
+                    perror("send");
+
             break;
             case 4:
             //
+
+            strncpy(resposta, "Recebido '4', Listando todos os títulos de filmes com seus identificadores .", sizeof(resposta) - 1);
+            resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
+
+            if (send(new_fd, resposta, strlen(resposta), 0) == -1)
+                    perror("send");
+
             break;
             case 5:
             //
+
+            strncpy(resposta, "Recebido '5', Listando informações de todos os filmes.", sizeof(resposta) - 1);
+            resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
+
+            if (send(new_fd, resposta, strlen(resposta), 0) == -1)
+                    perror("send");
+
             break;
             case 6:
             //
+
+            strncpy(resposta, "Recebido '6', Listando informações do filme.", sizeof(resposta) - 1);
+            resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
+
+            if (send(new_fd, resposta, strlen(resposta), 0) == -1)
+                    perror("send");
+
+
             break;
             case 7:
             //
+
+            strncpy(resposta, "Recebido '7', Listar todos os filmes desse gênero.", sizeof(resposta) - 1);
+            resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
+
+            if (send(new_fd, resposta, strlen(resposta), 0) == -1)
+                    perror("send");
+
             break;
+
             case 8:
-            //
+            // Sair
+            strncpy(resposta, "Recebido '8', encerrando acesso.", sizeof(resposta) - 1);
+            resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
+
+            if (send(new_fd, resposta, strlen(resposta), 0) == -1)
+                    perror("send");
             break;
             default:
-            //
+                strncpy(resposta, "O número enviado não corresponde a nenhuma operação válida. Por favor, envie um número correspondente a uma operação.", sizeof(resposta) - 1);
+                resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
             break;
             
         }
-        if (send(new_fd, resposta, strlen(resposta), 0) == -1)
-            perror("send");
+        // if (send(new_fd, resposta, strlen(resposta), 0) == -1)
+        //     perror("send");
     }
+    
 
 }
 
