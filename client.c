@@ -32,24 +32,51 @@ void falar_com_server(int fd){
     char received[MAXDATASIZE];
     char to_send[MAXDATASIZE];
     while(1){
-        int numbytes;
-        if ((numbytes = recv(fd, received, MAXDATASIZE, 0)) == -1) {
-            perror("recv");
-            exit(1);
+        int lendo = 1;
+        while(lendo)
+        {
+            lendo = 0;
+            int numbytes = 0;
+            memset(received, 0, sizeof(received));
+            if ((numbytes = recv(fd, received, MAXDATASIZE, 0)) == -1) {
+                perror("recv");
+                exit(1);
+            }
+        
+            received[numbytes] = '\0';
+
+            if (strstr(received, "<CONTINUE>") != NULL)
+            {
+
+                lendo = 1;
+                char *continue_pos = strstr(received, "<CONTINUE>");
+                if (continue_pos != NULL) {
+                    if (continue_pos == received + strlen(received) - strlen("<CONTINUE>")) {
+                        *continue_pos = '\0';
+                    } else {
+                        memmove(continue_pos, continue_pos + strlen("<CONTINUE>"), strlen(continue_pos + strlen("<CONTINUE>")) + 1);
+                        lendo = 0;
+                    }
+                }
+
+
+
+            }
+
+            printf(">> %s\n",received);
+
         }
-    
-        received[numbytes] = '\0';
-    
-        printf("client: received '%s'\n",received);
+        
 
         if (strcmp(received, "Recebido '8', encerrando acesso.") == 0) {
-            printf("Encerrando conexão com o servidor.\n");
+            printf("Encerrado conexão com o servidor.\n");
             break;
         }
 
+        printf("> ");
         fgets(to_send, MAXDATASIZE, stdin);
         to_send[strcspn(to_send, "\n")] = '\0';
-
+        
         if (send(fd, &to_send, MAXDATASIZE , 0) == -1)
             perror("send");
 

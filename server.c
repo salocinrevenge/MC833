@@ -42,30 +42,115 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+int get_identificador()
+{
+    FILE *file = fopen("filmes.csv", "r");
+    if (file == NULL) {
+        perror("fopen");
+        return -1;
+    }
+
+    int lines = 0;
+    char ch;
+    while (!feof(file)) {
+        ch = fgetc(file);
+        if (ch == '\n') {
+            lines++;
+        }
+    }
+
+    fclose(file);
+    return lines;
+}
+
 void option1(int new_fd)
 {
-    int valid = 0;
-    while(valid){
-        const char *msg = "Você escolheu a opção 1: Cadastrar um novo filme.\n\
-        Por favor, digite o nome do filme que deseja cadastrar.\n";
-        if (send(new_fd, msg, strlen(msg), 0) == -1)
-            perror("send");
+    char mensagem_recebida[MAXDATASIZE];
+    const char *msg = "Você escolheu a opção 1: Cadastrar um novo filme.\n\
+    Por favor, digite o titulo do filme que deseja cadastrar.\n";
+    if (send(new_fd, msg, strlen(msg), 0) == -1)
+        perror("send");
 
-        int numbytes = 0;
-        char mensagem_recebida[MAXDATASIZE];
+    int numbytes = 0;
+    char nome[MAXDATASIZE];
+    if ((numbytes = recv(new_fd, nome, MAXDATASIZE, 0)) == -1)
+        perror("recv");
+
+    
+
+
+    const char *msg2 = "Beleza, agora digite o genero do filme.\n";
+    if (send(new_fd, msg2, strlen(msg), 0) == -1)
+        perror("send");
+
+    numbytes = 0;
+    char genero[MAXDATASIZE];
+    if ((numbytes = recv(new_fd, genero, MAXDATASIZE, 0)) == -1)
+        perror("recv");
+
+
+
+    const char *msg3 = "Ok, insira agora o diretor.\n";
+    if (send(new_fd, msg3, strlen(msg), 0) == -1)
+        perror("send");
+
+    numbytes = 0;
+    char diretor[MAXDATASIZE];
+    if ((numbytes = recv(new_fd, diretor, MAXDATASIZE, 0)) == -1)
+        perror("recv");
+
+
+
+
+    const char *msg4 = "E agora, qual foi o ano?\n";
+    if (send(new_fd, msg4, strlen(msg4), 0) == -1)
+        perror("send");
+
+    int valido = 0;
+    int ano_int;
+    while(!valido)
+    {
+        numbytes = 0;
         if ((numbytes = recv(new_fd, mensagem_recebida, MAXDATASIZE, 0)) == -1)
             perror("recv");
-        
-
-
+        printf("server: received '%s'\n", mensagem_recebida);
+        if (sscanf(mensagem_recebida, "%d", &ano_int) != 1) {
+            const char *error_msg = "Erro: Ano inválido. Por favor, insira um número.\n";
+            if (send(new_fd, error_msg, strlen(error_msg), 0) == -1)
+                perror("send");
+            continue;
+        }
+        valido = 1;
     }
-    
+
+    FILE *file = fopen("filmes.csv", "a");
+    if (file == NULL) {
+        perror("fopen");
+        return;
+    }
+
+    int identificador = get_identificador();
+    if (identificador == -1) {
+        perror("get_identificador");
+        return;
+    }
+
+    fprintf(file, "%d,\"%s\",\"%s\",\"%s\",\"%d\"\n", identificador, nome, genero, diretor, ano_int);
+    fclose(file);
+
+    const char *msg5 = " Legal! filme inserido!\n<CONTINUE>";
+    if (send(new_fd, msg5, strlen(msg5), 0) == -1)
+        perror("send");
 
     
 }
 
 int atender(int new_fd)
 {
+    
+    
+    int opcode = 0;
+    char resposta[MAXDATASIZE*2];
     const char *msg = "Olá, cliente! Você se conectou ao servidor com sucesso!\n\
     Você pode realizar as seguintes operações:\n\
     (1) Cadastrar um novo filme\n\
@@ -76,15 +161,12 @@ int atender(int new_fd)
     (6) Listar informações de um filme específico\n\
     (7) Listar todos os filmes de um determinado gênero\n\
     (8) Sair\n";
-    if (send(new_fd, msg, strlen(msg), 0) == -1)
-        perror("send");
-
     
-    int opcode = 0;
-    char resposta[MAXDATASIZE*2];
-
     while(opcode != 8)
     {
+        if (send(new_fd, msg, strlen(msg), 0) == -1)
+            perror("send");
+
         printf("server: waiting for client message...\n");
         int numbytes = 0;
         char mensagem_recebida[MAXDATASIZE];
