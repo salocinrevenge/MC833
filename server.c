@@ -158,7 +158,6 @@ void option2(int new_fd)
     int n_identificador = 0;
     int numbytes = 0;
     while(!valid){  // Garante que o identificador é válido
-        printf("Pão3\n");
         
         numbytes = 0;
         char identificador[MAXDATASIZE];
@@ -173,7 +172,6 @@ void option2(int new_fd)
                 perror("send");
             continue; // Exit the function if invalid identifier
         }
-        printf("Pão4\n");
         // Check if the identifier exists in the file
         FILE *file = fopen("filmes.csv", "r");
         if (file == NULL) {
@@ -183,7 +181,6 @@ void option2(int new_fd)
             printf("Erro ao abrir o arquivo: %s\n<CONTINUE>", strerror(errno));
             return;
         }
-        printf("Pão5\n");
         int found = 0;
         char line[MAXDATASIZE];
         while (fgets(line, sizeof(line), file)) {
@@ -193,7 +190,6 @@ void option2(int new_fd)
                 break;
             }
         }
-        printf("Pão6\n");
         fclose(file);
 
         if (!found) {
@@ -211,63 +207,71 @@ void option2(int new_fd)
     if (send(new_fd, msg2, strlen(msg), 0) == -1)
         perror("send");
 
-    printf("Pão\n");
     numbytes = 0;
     char genero[MAXDATASIZE];
     if ((numbytes = recv(new_fd, genero, MAXDATASIZE, 0)) == -1)
         perror("recv");
 
-    printf("Pão2\n");
-
-    // Open the file for reading and writing
-    FILE *file = fopen("filmes.csv", "r+");
+    // Open the file for reading
+    FILE *file = fopen("filmes.csv", "r");
     if (file == NULL) {
         perror("fopen");
         return;
     }
 
+    // Open a temporary file for writing
+    FILE *temp_file = fopen("temp_filmes.csv", "w");
+    if (temp_file == NULL) {
+        perror("fopen");
+        fclose(file);
+        return;
+    }
+
     // Read the file line by line and find the matching identifier
     char line[MAXDATASIZE];
-    long pos = 0;
     int found = 0;
     while (fgets(line, sizeof(line), file)) {
         int id;
         if (sscanf(line, "%d,", &id) == 1 && id == n_identificador) {
             found = 1;
-            break;
+
+            // Parse the line to extract the current genres
+            char before_genero[MAXDATASIZE];
+            char current_genero[MAXDATASIZE];
+            char rest_of_line[MAXDATASIZE];
+            sscanf(line, "%*d,\"%[^\"]\",\"%[^\"]\",%[^\n]", before_genero, current_genero, rest_of_line);
+
+            // Concatenate the new genres to the existing ones
+            strncat(current_genero, ", ", sizeof(current_genero) - strlen(current_genero) - 1);
+            strncat(current_genero, genero, sizeof(current_genero) - strlen(current_genero) - 1);
+
+            // Write the updated line to the temporary file
+            fprintf(temp_file, "%d,\"%s\",\"%s\",%s\n", id, before_genero, current_genero, rest_of_line);
+        } else {
+            // Write the original line to the temporary file
+            fputs(line, temp_file);
         }
-        pos = ftell(file); // Save the position of the current line
     }
+
+    fclose(file);
+    fclose(temp_file);
 
     if (!found) {
         const char *error_msg = "Erro: Filme com este identificador não encontrado.\n";
         if (send(new_fd, error_msg, strlen(error_msg), 0) == -1)
             perror("send");
-        fclose(file);
+        remove("temp_filmes.csv"); // Clean up the temporary file
         return;
     }
 
-    // Parse the line to extract the current genres
-    char before_genero[MAXDATASIZE];
-    char current_genero[MAXDATASIZE];
-    char rest_of_line[MAXDATASIZE];
-    sscanf(line, "%*d,\"%[^\"]\",\"%[^\"]\",%[^\n]", before_genero, current_genero, rest_of_line);
-
-    printf("linha: %s\n", line);
-    printf("before_genero: %s\n", before_genero);
-    printf("current_genero: %s\n", current_genero);
-    printf("rest_of_line: %s\n", rest_of_line);
-    // Concatenate the new genres to the existing ones
-    strncat(current_genero, ", ", sizeof(current_genero) - strlen(current_genero) - 1);
-    strncat(current_genero, genero, sizeof(current_genero) - strlen(current_genero) - 1);
-
-    // Rewrite the line with the updated genres
-    fseek(file, pos, SEEK_SET);
-    printf("pos: %ld\n",pos);
-    printf("strtok: %s\n", strtok(line, ","));
-    fprintf(file, "%d,\"%s\",\"%s\",%s\n", n_identificador, before_genero, current_genero, rest_of_line);
-
-    fclose(file);
+    // Replace the original file with the temporary file
+    if (rename("temp_filmes.csv", "filmes.csv") != 0) {
+        perror("rename");
+        const char *error_msg = "Erro: Não foi possível atualizar o arquivo de filmes.\n";
+        if (send(new_fd, error_msg, strlen(error_msg), 0) == -1)
+            perror("send");
+        return;
+    }
 
     const char *success_msg = "Gênero adicionado com sucesso!\n";
     if (send(new_fd, success_msg, strlen(success_msg), 0) == -1)

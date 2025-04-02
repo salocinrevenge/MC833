@@ -1,3 +1,3 @@
-gcc server.c -o server
-gcc client.c -o client
-./server
+gcc server.c -o bin/server
+gcc client.c -o bin/client
+bin/server
