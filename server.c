@@ -14,12 +14,15 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <pthread.h>
 
 #define PORT "3490"  // the port users will be connecting to
 
 #define BACKLOG 10   // how many pending connections queue will hold
 
 #define MAXDATASIZE 1000 // max number of bytes we can get at once 
+
+pthread_mutex_t file_mutex;
 
 void sigchld_handler(int s)
 {
@@ -42,14 +45,8 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-int get_identificador()
+int get_identificador(FILE* file)
 {
-    FILE *file = fopen("filmes.csv", "r");
-    if (file == NULL) {
-        perror("fopen");
-        return -1;
-    }
-
     int lines = 0;
     char ch;
     while (!feof(file)) {
@@ -59,7 +56,6 @@ int get_identificador()
         }
     }
 
-    fclose(file);
     return lines;
 }
 
@@ -123,13 +119,14 @@ void option1(int new_fd)
         valido = 1;
     }
 
+    pthread_mutex_lock(&file_mutex);
     FILE *file = fopen("filmes.csv", "a");
     if (file == NULL) {
         perror("fopen");
         return;
     }
 
-    int identificador = get_identificador();
+    int identificador = get_identificador(file);
     if (identificador == -1) {
         perror("get_identificador");
         return;
@@ -137,12 +134,214 @@ void option1(int new_fd)
 
     fprintf(file, "%d,\"%s\",\"%s\",\"%s\",\"%d\"\n", identificador, nome, genero, diretor, ano_int);
     fclose(file);
+    pthread_mutex_unlock(&file_mutex);
 
     const char *msg5 = " Legal! filme inserido!\n<CONTINUE>";
     if (send(new_fd, msg5, strlen(msg5), 0) == -1)
         perror("send");
 
     
+}
+
+void option3(int new_fd)
+{
+    char mensagem_recebida[MAXDATASIZE];
+    const char *msg = "Você escolheu a opção 3: Remover um filme pelo identificador.\n\
+    Por favor, digite o identificador do filme que deseja remover.\n";
+    if (send(new_fd, msg, strlen(msg), 0) == -1)
+        perror("send");
+
+    int valid = 0;
+    int n_identificador = 0;
+    int numbytes = 0;
+    while(!valid){  // Garante que o identificador é válido
+        
+        numbytes = 0;
+        char identificador[MAXDATASIZE];
+        if ((numbytes = recv(new_fd, identificador, MAXDATASIZE, 0)) == -1)
+            perror("recv");
+
+        n_identificador = 0;
+        // Convert string identificador to integer
+        if (sscanf(identificador, "%d", &n_identificador) != 1) {
+            const char *error_msg = "Erro: Identificador inválido. Por favor, insira um número.\n";
+            if (send(new_fd, error_msg, strlen(error_msg), 0) == -1)
+                perror("send");
+            continue; // Exit the function if invalid identifier
+        }
+        // Check if the identifier exists in the file
+        FILE *file = fopen("filmes.csv", "r");
+        if (file == NULL) {
+            const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
+            if (send(new_fd, error_msg, strlen(error_msg), 0) == -1)
+                perror("send");
+            printf("Erro ao abrir o arquivo: %s\n<CONTINUE>", strerror(errno));
+            return;
+        }
+        int found = 0;
+        char line[MAXDATASIZE];
+        while (fgets(line, sizeof(line), file)) {
+            int id;
+            if (sscanf(line, "%d,", &id) == 1 && id == n_identificador) {
+                found = 1;
+                printf("%s\n", line);
+                break;
+            }
+        }
+        fclose(file);
+
+        if (!found) {
+            const char *error_msg = "Erro: Filme com este identificador não encontrado.\n";
+            if (send(new_fd, error_msg, strlen(error_msg), 0) == -1)
+                perror("send");
+            continue;
+        }
+        break;
+
+    }
+    // https://github.com/portfoliocourses/c-example-code/blob/main/delete_line.c
+
+    // Open the file for reading
+    FILE *file = fopen("filmes.csv", "r");
+    if (file == NULL) {
+        perror("fopen");
+        return;
+    }
+
+    // Open a temporary file for writing
+    FILE *temp_file = fopen("temp_filmes.csv", "w");
+    if (temp_file == NULL) {
+        perror("fopen");
+        fclose(file);
+        return;
+    }
+
+    // Read the file line by line and find the matching identifier
+    char line[MAXDATASIZE];
+    int found = 0;
+    while (fgets(line, sizeof(line), file)) {
+        int id;
+        if (!(sscanf(line, "%d,", &id) == 1 && id == n_identificador)) {
+            // Write the original line to the temporary file
+            fputs(line, temp_file);
+        }
+    }
+
+    fclose(file);
+    fclose(temp_file);
+
+    // Replace the original file with the temporary file
+    if (rename("temp_filmes.csv", "filmes.csv") != 0) {
+        perror("rename");
+        const char *error_msg = "Erro: Não foi possível atualizar o arquivo de filmes.\n";
+        if (send(new_fd, error_msg, strlen(error_msg), 0) == -1)
+            perror("send");
+        return;
+    }
+
+    const char *success_msg = "Filme removido com sucesso!<CONTINUE>\n";
+    if (send(new_fd, success_msg, strlen(success_msg), 0) == -1)
+        perror("send");
+}
+
+// returns true if check is a substring of strign, and false otherwise
+// https://github.com/portfoliocourses/c-example-code/blob/main/check_substring.c
+int is_substring(char *check, char *string)
+{
+  // get the length of both strings
+  int slen = strlen(string);
+  int clen = strlen(check);
+  
+  // we can stop checking for check in string at the position it will no longer
+  // possibly fit into the string
+  int end = slen - clen + 1;
+  
+  // check each position in string for check
+  for (int i = 0; i < end; i++)
+  {
+    // assume the check string is found at this position
+    int check_found = 1;
+    
+    // check each index of the check string to see if it matches with the 
+    // corresponding character in string at index i onwards
+    for (int j = 0; j < clen; j++)
+    {
+      // if we find a non-matching character, we know that check is not 
+      // found here and we can stop checking now
+      if (check[j] != string[i + j])
+      {
+        check_found = 0;
+        break;
+      }
+    }
+    
+    // if we found no non-matching characters, we found that check IS a 
+    // substring of string (at position i) and we can stop checking
+    if (check_found) return 1;
+  }
+  
+  // if at no position in string did we find check it is NOT a substring
+  return 0;
+}
+
+void option7(int new_fd)
+{
+    char mensagem_recebida[MAXDATASIZE];
+    const char *msg = "Você escolheu a opção 7: Listtar todos os filmes de um determinado gênero.\n\
+    Por favor, digite o gênero que você deseja buscar.\n";
+    if (send(new_fd, msg, strlen(msg), 0) == -1)
+        perror("send");
+
+    int numbytes = 0;
+    char genero[MAXDATASIZE];
+    if ((numbytes = recv(new_fd, genero, MAXDATASIZE, 0)) == -1)
+        perror("recv");
+
+    // Open the file for reading
+    FILE *file = fopen("filmes.csv", "r");
+    if (file == NULL) {
+        perror("fopen");
+        return;
+    }
+
+    // Read the file line by line and find all matching movies
+    // TODO: change sizes to be all movies (worst case scenario)
+    int max_title_size = 100;
+    char matches[100][max_title_size];  
+
+    char line[MAXDATASIZE];
+    char movie_title[MAXDATASIZE];
+    char current_genero[MAXDATASIZE];
+    char rest_of_line[MAXDATASIZE];
+    int found = 0;
+    while (fgets(line, sizeof(line), file)) {
+        if (sscanf(line, "%*d,\"%[^\"]\",\"%[^\"]\",%[^\n]", movie_title, current_genero, rest_of_line) &&
+            is_substring(genero, current_genero)) {                
+                strncpy(matches[found], movie_title, max_title_size);
+                found++;
+        }
+    }
+
+    fclose(file);
+
+    if (!found) {
+        const char *error_msg = "Nenhum filme com este gênero foi encontrado.\n";
+        if (send(new_fd, error_msg, strlen(error_msg), 0) == -1)
+            perror("send");
+        return;
+    }
+
+    char success_msg[1000];  // TODO: Allocate a buffer large enough
+    snprintf(success_msg, sizeof(success_msg), "Foram encontrados %d filmes:\n", found);
+    for (int i = 0; i < found; i++)
+    {
+        strncat(success_msg, "- ", sizeof(success_msg) - strlen(success_msg) - 1);
+        strncat(success_msg, matches[i], sizeof(success_msg) - strlen(success_msg) - 1);
+        strncat(success_msg, "\n", sizeof(success_msg) - strlen(success_msg) - 1);
+    }
+
+    if (send(new_fd, success_msg, strlen(success_msg), 0) == -1)
+        perror("send");
 }
 
 int atender(int new_fd)
@@ -212,11 +411,7 @@ int atender(int new_fd)
             case 3:
             // Remover um filme pelo identificador
 
-            strncpy(resposta, "Recebido '3', Removendo um filme pelo identificador.", sizeof(resposta) - 1);
-            resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
-
-            if (send(new_fd, resposta, strlen(resposta), 0) == -1)
-                    perror("send");
+            option3(new_fd);
 
             break;
             case 4:
@@ -253,11 +448,7 @@ int atender(int new_fd)
             case 7:
             //
 
-            strncpy(resposta, "Recebido '7', Listar todos os filmes desse gênero.", sizeof(resposta) - 1);
-            resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
-
-            if (send(new_fd, resposta, strlen(resposta), 0) == -1)
-                    perror("send");
+            option7(new_fd);
 
             break;
 
@@ -370,5 +561,6 @@ int main(void)
         close(new_fd);  // parent doesn't need this
     }
 
+    pthread_mutex_destroy(&file_mutex);
     return 0;
 }
