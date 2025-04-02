@@ -79,7 +79,8 @@ void option1(int new_fd)
     
 
 
-    const char *msg2 = "Beleza, agora digite o genero do filme.\n";
+    const char *msg2 = "Beleza, agora digite o(s) genero(s) do filme.\
+    Se houver mais de um, separe por vígulas.\n";
     if (send(new_fd, msg2, strlen(msg), 0) == -1)
         perror("send");
 
@@ -145,6 +146,134 @@ void option1(int new_fd)
     
 }
 
+void option2(int new_fd)
+{
+    char mensagem_recebida[MAXDATASIZE];
+    const char *msg = "Você escolheu a opção 2: Adicionar um novo gênero a um filme.\n\
+    Por favor, digite o identificador do filme que deseja adicionar o gênero.\n";
+    if (send(new_fd, msg, strlen(msg), 0) == -1)
+        perror("send");
+
+    int valid = 0;
+    int n_identificador = 0;
+    int numbytes = 0;
+    while(!valid){  // Garante que o identificador é válido
+        printf("Pão3\n");
+        
+        numbytes = 0;
+        char identificador[MAXDATASIZE];
+        if ((numbytes = recv(new_fd, identificador, MAXDATASIZE, 0)) == -1)
+            perror("recv");
+
+        n_identificador = 0;
+        // Convert string identificador to integer
+        if (sscanf(identificador, "%d", &n_identificador) != 1) {
+            const char *error_msg = "Erro: Identificador inválido. Por favor, insira um número.\n";
+            if (send(new_fd, error_msg, strlen(error_msg), 0) == -1)
+                perror("send");
+            continue; // Exit the function if invalid identifier
+        }
+        printf("Pão4\n");
+        // Check if the identifier exists in the file
+        FILE *file = fopen("filmes.csv", "r");
+        if (file == NULL) {
+            const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
+            if (send(new_fd, error_msg, strlen(error_msg), 0) == -1)
+                perror("send");
+            printf("Erro ao abrir o arquivo: %s\n<CONTINUE>", strerror(errno));
+            return;
+        }
+        printf("Pão5\n");
+        int found = 0;
+        char line[MAXDATASIZE];
+        while (fgets(line, sizeof(line), file)) {
+            int id;
+            if (sscanf(line, "%d,", &id) == 1 && id == n_identificador) {
+                found = 1;
+                break;
+            }
+        }
+        printf("Pão6\n");
+        fclose(file);
+
+        if (!found) {
+            const char *error_msg = "Erro: Filme com este identificador não encontrado.\n";
+            if (send(new_fd, error_msg, strlen(error_msg), 0) == -1)
+                perror("send");
+            continue;
+        }
+        break;
+
+    }
+
+
+    const char *msg2 = "Beleza, agora digite o(s) genero(s) do filme. Se houver mais de um, separe por vígulas.\n";
+    if (send(new_fd, msg2, strlen(msg), 0) == -1)
+        perror("send");
+
+    printf("Pão\n");
+    numbytes = 0;
+    char genero[MAXDATASIZE];
+    if ((numbytes = recv(new_fd, genero, MAXDATASIZE, 0)) == -1)
+        perror("recv");
+
+    printf("Pão2\n");
+
+    // Open the file for reading and writing
+    FILE *file = fopen("filmes.csv", "r+");
+    if (file == NULL) {
+        perror("fopen");
+        return;
+    }
+
+    // Read the file line by line and find the matching identifier
+    char line[MAXDATASIZE];
+    long pos = 0;
+    int found = 0;
+    while (fgets(line, sizeof(line), file)) {
+        int id;
+        if (sscanf(line, "%d,", &id) == 1 && id == n_identificador) {
+            found = 1;
+            break;
+        }
+        pos = ftell(file); // Save the position of the current line
+    }
+
+    if (!found) {
+        const char *error_msg = "Erro: Filme com este identificador não encontrado.\n";
+        if (send(new_fd, error_msg, strlen(error_msg), 0) == -1)
+            perror("send");
+        fclose(file);
+        return;
+    }
+
+    // Parse the line to extract the current genres
+    char before_genero[MAXDATASIZE];
+    char current_genero[MAXDATASIZE];
+    char rest_of_line[MAXDATASIZE];
+    sscanf(line, "%*d,\"%[^\"]\",\"%[^\"]\",%[^\n]", before_genero, current_genero, rest_of_line);
+
+    printf("linha: %s\n", line);
+    printf("before_genero: %s\n", before_genero);
+    printf("current_genero: %s\n", current_genero);
+    printf("rest_of_line: %s\n", rest_of_line);
+    // Concatenate the new genres to the existing ones
+    strncat(current_genero, ", ", sizeof(current_genero) - strlen(current_genero) - 1);
+    strncat(current_genero, genero, sizeof(current_genero) - strlen(current_genero) - 1);
+
+    // Rewrite the line with the updated genres
+    fseek(file, pos, SEEK_SET);
+    printf("pos: %ld\n",pos);
+    printf("strtok: %s\n", strtok(line, ","));
+    fprintf(file, "%d,\"%s\",\"%s\",%s\n", n_identificador, before_genero, current_genero, rest_of_line);
+
+    fclose(file);
+
+    const char *success_msg = "Gênero adicionado com sucesso!\n";
+    if (send(new_fd, success_msg, strlen(success_msg), 0) == -1)
+        perror("send");
+}
+
 int atender(int new_fd)
 {
     
@@ -202,11 +331,7 @@ int atender(int new_fd)
             case 2:
             // Adicionar um novo gênero a um filme
 
-            strncpy(resposta, "Recebido '2', Adicionando genero de filme.", sizeof(resposta) - 1);
-            resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
-
-            if (send(new_fd, resposta, strlen(resposta), 0) == -1)
-                    perror("send");
+            option2(new_fd);
 
             break;
             case 3:
