@@ -273,15 +273,47 @@ void option2(int new_fd)
         return;
     }
 
-    const char *success_msg = "Gênero adicionado com sucesso!\n";
+    const char *success_msg = "Gênero adicionado com sucesso!<CONTINUE>\n";
     if (send(new_fd, success_msg, strlen(success_msg), 0) == -1)
         perror("send");
 }
 
 void option4(int new_fd)
 {
+    const char *msg = "Você escolheu a opção 5: Listar todos os títulos de filmes com seus identificadores.\n<CONTINUE>";
+    if (send(new_fd, msg, strlen(msg), 0) == -1)
+        perror("send");
+
+    FILE *file = fopen("filmes.csv", "r");
+    if (file == NULL) {
+        perror("fopen");
+        return;
+    }
+
+    char line[MAXDATASIZE];
+    while (fgets(line, sizeof(line), file)) {
+        int id;
+        char titulo[MAXDATASIZE];
+
+        if (sscanf(line, "%d,\"%[^\"]\"", &id, titulo) == 2) {
+            char formatted_line[MAXDATASIZE*2];
+            snprintf(formatted_line, sizeof(formatted_line), "ID: %d; Titulo: \"%s\"\n<CONTINUE>", id, titulo);
+            if (send(new_fd, formatted_line, MAXDATASIZE, 0) == -1)
+                perror("send");
+        }
+    }
+
+    const char *end_msg = "Fim da lista de filmes.\n<CONTINUE>";
+    if (send(new_fd, end_msg, strlen(end_msg), 0) == -1)
+        perror("send");
+    fclose(file);
+
+}
+
+void option5(int new_fd)
+{
     char mensagem_recebida[MAXDATASIZE];
-    const char *msg = "Você escolheu a opção 4: Listar todos os títulos de filmes com seus identificadores.\n<CONTINUE>";
+    const char *msg = "Recebido '5', Listando informações de todos os filmes.\n<CONTINUE>";
     if (send(new_fd, msg, strlen(msg), 0) == -1)
         perror("send");
 
@@ -328,7 +360,7 @@ void option6(int new_fd){
         // Convert string identificador to integer
         if (sscanf(identificador, "%d", &n_identificador) != 1) {
             const char *error_msg = "Erro: Identificador inválido. Por favor, insira um número.\n";
-            if (send(new_fd, error_msg, strlen(error_msg), 0) == -1)
+            if (send(new_fd, error_msg, MAXDATASIZE, 0) == -1)
                 perror("send");
             continue; // Exit the function if invalid identifier
         }
@@ -336,7 +368,7 @@ void option6(int new_fd){
         FILE *file = fopen("filmes.csv", "r");
         if (file == NULL) {
             const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
-            if (send(new_fd, error_msg, strlen(error_msg), 0) == -1)
+            if (send(new_fd, error_msg, MAXDATASIZE, 0) == -1)
                 perror("send");
             printf("Erro ao abrir o arquivo: %s\n<CONTINUE>", strerror(errno));
             return;
@@ -504,11 +536,7 @@ int atender(int new_fd)
             case 5:
             //
 
-            strncpy(resposta, "Recebido '5', Listando informações de todos os filmes.", sizeof(resposta) - 1);
-            resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
-
-            if (send(new_fd, resposta, strlen(resposta), 0) == -1)
-                    perror("send");
+            option5(new_fd);
 
             break;
             case 6:
