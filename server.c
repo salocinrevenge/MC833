@@ -278,13 +278,36 @@ void option2(int new_fd)
         perror("send");
 }
 
+void option4(int new_fd)
+{
+    char mensagem_recebida[MAXDATASIZE];
+    const char *msg = "Você escolheu a opção 4: Listar todos os títulos de filmes com seus identificadores.\n<CONTINUE>";
+    if (send(new_fd, msg, strlen(msg), 0) == -1)
+        perror("send");
+
+    FILE *file = fopen("filmes.csv", "r");
+    if (file == NULL) {
+        perror("fopen");
+        return;
+    }
+
+    char line[MAXDATASIZE];
+    while (fgets(line, sizeof(line), file)) {
+        strncat(line, "<CONTINUE>", sizeof(line) - strlen(line) - 1);
+        if (send(new_fd, line, strlen(line), 0) == -1)
+            perror("send");
+    }
+
+    fclose(file);
+}
+
 int atender(int new_fd)
 {
     
     
     int opcode = 0;
     char resposta[MAXDATASIZE*2];
-    const char *msg = "Olá, cliente! Você se conectou ao servidor com sucesso!\n\
+    const char *msg = "\nOlá, cliente! Você se conectou ao servidor com sucesso!\n\
     Você pode realizar as seguintes operações:\n\
     (1) Cadastrar um novo filme\n\
     (2) Adicionar um novo gênero a um filme\n\
@@ -351,11 +374,7 @@ int atender(int new_fd)
             case 4:
             //
 
-            strncpy(resposta, "Recebido '4', Listando todos os títulos de filmes com seus identificadores .", sizeof(resposta) - 1);
-            resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
-
-            if (send(new_fd, resposta, strlen(resposta), 0) == -1)
-                    perror("send");
+            option4(new_fd);
 
             break;
             case 5:
