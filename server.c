@@ -239,7 +239,7 @@ void option3(int new_fd)
         return;
     }
 
-    const char *success_msg = "Filme removido com sucesso!<CONTINUE>\n";
+    const char *success_msg = "Filme removido com sucesso!\n<CONTINUE>";
     if (send(new_fd, success_msg, strlen(success_msg), 0) == -1)
         perror("send");
 }
@@ -304,43 +304,60 @@ void option7(int new_fd)
         return;
     }
 
-    // Read the file line by line and find all matching movies
-    // TODO: change sizes to be all movies (worst case scenario)
-    int max_title_size = 100;
-    char matches[100][max_title_size];  
+    // Send an initial message
+    char count_msg[MAXDATASIZE] = "Buscando filmes...\n<CONTINUE>";
+    if (send(new_fd, count_msg, strlen(count_msg), 0) == -1)
+        perror("send");
+
+    char send_buffer[MAXDATASIZE] = "Filmes encontrados:\n";
 
     char line[MAXDATASIZE];
     char movie_title[MAXDATASIZE];
     char current_genero[MAXDATASIZE];
-    char rest_of_line[MAXDATASIZE];
+    int line_num = 0;
     int found = 0;
     while (fgets(line, sizeof(line), file)) {
-        if (sscanf(line, "%*d,\"%[^\"]\",\"%[^\"]\",%[^\n]", movie_title, current_genero, rest_of_line) &&
+        if (sscanf(line, "%*d,\"%[^\"]\",\"%[^\"]\",%*[^\n]", movie_title, current_genero) &&
             is_substring(genero, current_genero)) {                
-                strncpy(matches[found], movie_title, max_title_size);
+                char movie_msg[MAXDATASIZE];
+                snprintf(movie_msg, sizeof(movie_msg), "- [%d] %s\n", line_num, movie_title);
+
+                // Check if adding this movie would exceed the buffer size
+                if (strlen(send_buffer) + strlen(movie_msg) >= MAXDATASIZE - strlen("<CONTINUE>") - 1) {
+                    // Send the buffer since it's full
+                    strncat(send_buffer, "<CONTINUE>", MAXDATASIZE - strlen(send_buffer) - 1);
+                    if (send(new_fd, send_buffer, strlen(send_buffer), 0) == -1)
+                        perror("send");
+
+                    // Reset the buffer
+                    send_buffer[0] = '\0';
+                }
+
+                // Append movie to buffer
+                strncat(send_buffer, movie_msg, MAXDATASIZE - strlen(send_buffer) - 1);
                 found++;
         }
+        line_num++;
     }
 
     fclose(file);
 
     if (!found) {
-        const char *error_msg = "Nenhum filme com este gênero foi encontrado.\n";
+        const char *error_msg = "Nenhum filme com este gênero foi encontrado.\n<CONTINUE>";
         if (send(new_fd, error_msg, strlen(error_msg), 0) == -1)
             perror("send");
         return;
     }
 
-    char success_msg[1000];  // TODO: Allocate a buffer large enough
-    snprintf(success_msg, sizeof(success_msg), "Foram encontrados %d filmes:\n", found);
-    for (int i = 0; i < found; i++)
-    {
-        strncat(success_msg, "- ", sizeof(success_msg) - strlen(success_msg) - 1);
-        strncat(success_msg, matches[i], sizeof(success_msg) - strlen(success_msg) - 1);
-        strncat(success_msg, "\n", sizeof(success_msg) - strlen(success_msg) - 1);
+    // Send any remaining data in the buffer
+    if (strlen(send_buffer) > 0) {
+        strncat(send_buffer, "<CONTINUE>", MAXDATASIZE - strlen(send_buffer) - 1);
+        if (send(new_fd, send_buffer, strlen(send_buffer), 0) == -1)
+            perror("send");
     }
 
-    if (send(new_fd, success_msg, strlen(success_msg), 0) == -1)
+    const char *end_msg = "Fim da lista de filmes.\n<CONTINUE>";
+    if (send(new_fd, end_msg, strlen(end_msg), 0) == -1)
         perror("send");
 }
 
