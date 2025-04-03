@@ -56,6 +56,7 @@ int get_identificador(FILE* file)
         }
     }
 
+    rewind(file);
     return lines;
 }
 
@@ -75,8 +76,8 @@ void option1(int new_fd)
     
 
 
-    const char *msg2 = "Beleza, agora digite o(s) genero(s) do filme.\
-    Se houver mais de um, separe por vígulas.\n";
+    const char *msg2 = "Beleza, agora digite o(s) gênero(s) do filme.\
+    Se houver mais de um, separe por vírgulas.\n";
     if (send(new_fd, msg2, strlen(msg), 0) == -1)
         perror("send");
 
@@ -121,7 +122,7 @@ void option1(int new_fd)
     }
 
     pthread_mutex_lock(&file_mutex);
-    FILE *file = fopen("filmes.csv", "a");
+    FILE *file = fopen("filmes.csv", "a+");
     if (file == NULL) {
         perror("fopen");
         return;
@@ -137,7 +138,7 @@ void option1(int new_fd)
     fclose(file);
     pthread_mutex_unlock(&file_mutex);
 
-    const char *msg5 = " Legal! filme inserido!\n<CONTINUE>";
+    const char *msg5 = " Legal! Filme inserido!\n<CONTINUE>";
     if (send(new_fd, msg5, strlen(msg5), 0) == -1)
         perror("send");
 
@@ -201,7 +202,7 @@ void option2(int new_fd)
     }
 
 
-    const char *msg2 = "Beleza, agora digite o(s) genero(s) do filme. Se houver mais de um, separe por vígulas.\n";
+    const char *msg2 = "Beleza, agora digite o(s) gênero(s) do filme. Se houver mais de um, separe por vírgulas.\n";
     if (send(new_fd, msg2, strlen(msg), 0) == -1)
         perror("send");
 
@@ -379,7 +380,7 @@ void option3(int new_fd)
 
 void option4(int new_fd)
 {
-    const char *msg = "Você escolheu a opção 5: Listar todos os títulos de filmes com seus identificadores.\n<CONTINUE>";
+    const char *msg = "Você escolheu a opção 4: Listar todos os títulos de filmes com seus identificadores.\n<CONTINUE>";
     if (send(new_fd, msg, strlen(msg), 0) == -1)
         perror("send");
 
@@ -412,7 +413,7 @@ void option4(int new_fd)
 void option5(int new_fd)
 {
     char mensagem_recebida[MAXDATASIZE];
-    const char *msg = "Recebido '5', Listando informações de todos os filmes.\n<CONTINUE>";
+    const char *msg = "Você escolheu a opção 5: Listar informações de todos os filmes.\n<CONTINUE>";
     if (send(new_fd, msg, strlen(msg), 0) == -1)
         perror("send");
 
@@ -599,7 +600,7 @@ int is_substring(char *check, char *string)
 void option7(int new_fd)
 {
     char mensagem_recebida[MAXDATASIZE];
-    const char *msg = "Você escolheu a opção 7: Listtar todos os filmes de um determinado gênero.\n\
+    const char *msg = "Você escolheu a opção 7: Listar todos os filmes de um determinado gênero.\n\
     Por favor, digite o gênero que você deseja buscar.\n";
     if (send(new_fd, msg, strlen(msg), 0) == -1)
         perror("send");
@@ -632,7 +633,7 @@ void option7(int new_fd)
         if (sscanf(line, "%*d,\"%[^\"]\",\"%[^\"]\",%*[^\n]", movie_title, current_genero) &&
             is_substring(genero, current_genero)) {                
                 char movie_msg[MAXDATASIZE];
-                snprintf(movie_msg, sizeof(movie_msg), "- [%d] %s\n", line_num, movie_title);
+                snprintf(movie_msg, sizeof(movie_msg), "ID: %d; Titulo: \"%s\"\n<CONTINUE>", line_num, movie_title);
 
                 // Check if adding this movie would exceed the buffer size
                 if (strlen(send_buffer) + strlen(movie_msg) >= MAXDATASIZE - strlen("<CONTINUE>") - 1) {
