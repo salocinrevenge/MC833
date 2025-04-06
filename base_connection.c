@@ -1,16 +1,10 @@
 #include "base_connection.h"
 
 #include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <errno.h>
 #include <string.h>
-// #include <netdb.h>
-// #include <signal.h>
-// #include <sys/types.h>
 #include <sys/wait.h>
-#include <arpa/inet.h>
 
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -56,7 +50,6 @@ size_t send_message(int fd, const char *msg)
         total_sent += bytes_sent;
     }
 
-    printf("send: %d bytes sent to %d\n", total_sent, fd);
     return total_sent;
 }
 
@@ -115,6 +108,5 @@ size_t recv_message(int fd, char **buf)
     }
 
     (*buf)[len - 1] = '\0';
-    printf("recv: %d bytes received from %d\n", total_received, fd);
     return len - 1;
 }

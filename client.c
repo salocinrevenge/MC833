@@ -1,87 +1,61 @@
-/*
-** client.c -- a stream socket client demo
-*/
+#include "base_connection.h"
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
 #include <string.h>
+#include <unistd.h>
 #include <netdb.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
 
 #include <arpa/inet.h>
 
-#define PORT "3490" // the port client will be connecting to 
-
-#define MAXDATASIZE 1000 // max number of bytes we can get at once 
-
-// get sockaddr, IPv4 or IPv6:
-void *get_in_addr(struct sockaddr *sa)
-{
-    if (sa->sa_family == AF_INET) {
-        return &(((struct sockaddr_in*)sa)->sin_addr);
-    }
-
-    return &(((struct sockaddr_in6*)sa)->sin6_addr);
-}
-
-void falar_com_server(int fd){
-    char received[MAXDATASIZE];
+void falar_com_server(int fd) {
+    char *received;
     char to_send[MAXDATASIZE];
-    while(1){
-        int lendo = 1;
-        while(lendo)
-        {
+
+    while(1) {
+        int lendo;
+
+        do {
             lendo = 0;
-            int numbytes = 0;
-            memset(received, 0, sizeof(received));
-            if ((numbytes = recv(fd, received, MAXDATASIZE, 0)) == -1) {
-                perror("recv");
+
+            if (!recv_message(fd, &received)) {
                 exit(1);
             }
-        
-            received[numbytes] = '\0';
 
-            if (strstr(received, "<CONTINUE>") != NULL)
-            {
+            char *continue_pos = strstr(received, "<CONTINUE>");
+            if (continue_pos != NULL) {
+                int marker_len = strlen("<CONTINUE>");
+                int tail_len = strlen(continue_pos + marker_len);
 
-                lendo = 1;
-                char *continue_pos = strstr(received, "<CONTINUE>");
-                if (continue_pos != NULL) {
-                    if (continue_pos == received + strlen(received) - strlen("<CONTINUE>")) {
-                        *continue_pos = '\0';
-                    } else {
-                        memmove(continue_pos, continue_pos + strlen("<CONTINUE>"), strlen(continue_pos + strlen("<CONTINUE>")) + 1);
-                        lendo = 0;
-                    }
+                // If the marker is at the end, truncate it and keep reading
+                if (*(continue_pos + marker_len) == '\0') {
+                    *continue_pos = '\0';
+                    lendo = 1;
+                } else {
+                    // Marker in the middle — remove it and don't expect more
+                    memmove(continue_pos, continue_pos + marker_len, tail_len + 1);
                 }
-
-
-
             }
 
             printf(">> %s\n",received);
 
-        }
-        
+            // Check exit condition
+            if (strcmp(received, "Recebido '8', encerrando acesso.") == 0) {
+                printf("Encerrada conexão com o servidor.\n");
+                free(received);
+                return;
+            }
 
-        if (strcmp(received, "Recebido '8', encerrando acesso.") == 0) {
-            printf("Encerrado conexão com o servidor.\n");
-            break;
-        }
+            free(received);
+        } while(lendo);
 
+        // Prompt user for input
         printf("> ");
         fgets(to_send, MAXDATASIZE, stdin);
         to_send[strcspn(to_send, "\n")] = '\0';
-        
-        if (send(fd, &to_send, MAXDATASIZE , 0) == -1)
-            perror("send");
 
+        send_message(fd, to_send);
     }
-
 }
 
 int main(int argc, char *argv[])

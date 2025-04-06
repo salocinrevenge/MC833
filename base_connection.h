@@ -2,7 +2,6 @@
 #define BASE_CONNECTION_H
 
 #include <netinet/in.h>
-#include <sys/socket.h>
 
 #define PORT "3490"         // the port users will be connecting to
 #define MAXDATASIZE 1000    // max number of bytes we can send at once
