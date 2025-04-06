@@ -452,52 +452,30 @@ void option7(int new_fd)
     const char *count_msg = "Buscando filmes...\n<CONTINUE>";
     send_message(new_fd, count_msg);
 
-    char send_buffer[MAXDATASIZE] = "Filmes encontrados:\n";
-
+    int id, found = 0;
     char line[MAXDATASIZE];
     char movie_title[MAXDATASIZE];
     char current_genero[MAXDATASIZE];
-    int line_num = 0;
-    int found = 0;
     while (fgets(line, sizeof(line), file)) {
-        if (sscanf(line, "%*d,\"%[^\"]\",\"%[^\"]\",%*[^\n]", movie_title, current_genero) &&
+        if (sscanf(line, "%d,\"%[^\"]\",\"%[^\"]\",%*[^\n]", &id, movie_title, current_genero) == 3 &&
             strstr(current_genero, genero)) {                
-                char movie_msg[MAXDATASIZE*2];
-                snprintf(movie_msg, sizeof(movie_msg), "ID: %d; Titulo: \"%s\"\n<CONTINUE>", line_num, movie_title);
-
-                // Check if adding this movie would exceed the buffer size
-                if (strlen(send_buffer) + strlen(movie_msg) >= MAXDATASIZE - strlen("<CONTINUE>") - 1) {
-                    // Send the buffer since it's full
-                    strncat(send_buffer, "<CONTINUE>", MAXDATASIZE - strlen(send_buffer) - 1);
-                    send_message(new_fd, send_buffer);
-
-                    // Reset the buffer
-                    send_buffer[0] = '\0';
-                }
-
-                // Append movie to buffer
-                strncat(send_buffer, movie_msg, MAXDATASIZE - strlen(send_buffer) - 1);
+                char formatted_line[MAXDATASIZE*2];
+                snprintf(formatted_line, sizeof(formatted_line), "ID: %d; Titulo: \"%s\"\n<CONTINUE>", id, movie_title);
+                send_message(new_fd, formatted_line);
                 found++;
         }
-        line_num++;
     }
 
     fclose(file);
     free(genero);
 
-    if (!found) {
-        const char *error_msg = "Nenhum filme com este gênero foi encontrado.\n<CONTINUE>";
-        send_message(new_fd, error_msg);
-        return;
+    // Send the final message
+    char *end_msg;
+    if (found > 0) {
+        end_msg = "Fim da lista de filmes.\n<CONTINUE>";
+    } else {
+        end_msg = "Nenhum filme com este gênero foi encontrado.\n<CONTINUE>";
     }
-
-    // Send any remaining data in the buffer
-    if (strlen(send_buffer) > 0) {
-        strncat(send_buffer, "<CONTINUE>", MAXDATASIZE - strlen(send_buffer) - 1);
-        send_message(new_fd, send_buffer);
-    }
-
-    const char *end_msg = "Fim da lista de filmes.\n<CONTINUE>";
     send_message(new_fd, end_msg);
 }
 
