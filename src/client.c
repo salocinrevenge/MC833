@@ -18,23 +18,16 @@ void falar_com_server(int fd) {
         do {
             lendo = 0;
 
-            if (!recv_message(fd, &received)) {
+            retorno_recv retorno = recv_message(fd, &received);
+            if (retorno.len == 0) {
                 exit(1);
             }
 
-            char *continue_pos = strstr(received, "<CONTINUE>");
-            if (continue_pos != NULL) {
-                int marker_len = strlen("<CONTINUE>");
-                int tail_len = strlen(continue_pos + marker_len);
+            // printf("client: received '%s'\n", received);
 
-                // If the marker is at the end, truncate it and keep reading
-                if (*(continue_pos + marker_len) == '\0') {
-                    *continue_pos = '\0';
-                    lendo = 1;
-                } else {
-                    // Marker in the middle — remove it and don't expect more
-                    memmove(continue_pos, continue_pos + marker_len, tail_len + 1);
-                }
+            if(retorno.continuando == 1) {
+                printf("client: received continuation message\n");
+                lendo = 1;
             }
 
             printf(">> %s\n",received);
@@ -54,7 +47,7 @@ void falar_com_server(int fd) {
         fgets(to_send, MAXDATASIZE, stdin);
         to_send[strcspn(to_send, "\n")] = '\0';
 
-        send_message(fd, to_send);
+        send_message(fd, to_send, 0);
     }
 }
 

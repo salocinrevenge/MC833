@@ -14,6 +14,7 @@
 
 pthread_mutex_t file_mutex;
 
+
 int count_lines(FILE *file)
 {
     int lines = 0;
@@ -36,7 +37,7 @@ int get_valid_identifier(int fd) {
         // Convert string identificador to integer
         if (sscanf(identificador, "%d", &n_identificador) != 1) {
             const char *error_msg = "Erro: Identificador inválido. Por favor, insira um número.\n";
-            send_message(fd, error_msg);
+            send_message(fd, error_msg, 0);
             free(identificador);
             continue;
         }
@@ -46,8 +47,8 @@ int get_valid_identifier(int fd) {
         FILE *file = fopen("filmes.csv", "r");
         if (file == NULL) {
             const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
-            send_message(fd, error_msg);
-            printf("Erro ao abrir o arquivo: %s\n<CONTINUE>", strerror(errno));
+            send_message(fd, error_msg, 0);
+            printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
             return -1;
         }
         int id, found = 0;
@@ -62,7 +63,7 @@ int get_valid_identifier(int fd) {
 
         if (!found) {
             const char *error_msg = "Erro: Filme com este identificador não encontrado.\n";
-            send_message(fd, error_msg);
+            send_message(fd, error_msg, 0);
             continue;
         }
         valid = 1;
@@ -74,7 +75,7 @@ void option1(int new_fd)
 {
     const char *msg = "Você escolheu a opção 1: Cadastrar um novo filme.\n\
     Por favor, digite o titulo do filme que deseja cadastrar.\n";
-    send_message(new_fd, msg);
+    send_message(new_fd, msg, 0);
 
     char *nome;
     recv_message(new_fd, &nome);
@@ -82,21 +83,21 @@ void option1(int new_fd)
     // Get movie genre(s)
     const char *msg2 = "Beleza, agora digite o(s) gênero(s) do filme.\
     Se houver mais de um, separe por vírgulas.\n";
-    send_message(new_fd, msg2);
+    send_message(new_fd, msg2, 0);
 
     char *genero;
     recv_message(new_fd, &genero);
 
     // Get movie director
     const char *msg3 = "Ok, insira agora o diretor.\n";
-    send_message(new_fd, msg3);
+    send_message(new_fd, msg3, 0);
 
     char *diretor;
     recv_message(new_fd, &diretor);
 
     // Get movie year
     const char *msg4 = "E agora, qual foi o ano?\n";
-    send_message(new_fd, msg4);
+    send_message(new_fd, msg4, 0);
 
     int valido = 0;
     int ano_int;
@@ -107,7 +108,7 @@ void option1(int new_fd)
         printf("server: received '%s'\n", ano);
         if (sscanf(ano, "%d", &ano_int) != 1) {
             const char *error_msg = "Erro: Ano inválido. Por favor, insira um número.\n";
-            send_message(new_fd, error_msg);
+            send_message(new_fd, error_msg, 0);
             free(ano);
             continue;
         }
@@ -131,8 +132,8 @@ void option1(int new_fd)
     fclose(file);
     pthread_mutex_unlock(&file_mutex);
 
-    const char *msg5 = " Legal! Filme inserido!\n<CONTINUE>";
-    send_message(new_fd, msg5);
+    const char *msg5 = " Legal! Filme inserido!\n";
+    send_message(new_fd, msg5, 1);
     
     free(nome);
     free(genero);
@@ -144,14 +145,14 @@ void option2(int new_fd)
 {
     const char *msg = "Você escolheu a opção 2: Adicionar um novo gênero a um filme.\n\
     Por favor, digite o identificador do filme que deseja adicionar o gênero.\n";
-    send_message(new_fd, msg);
+    send_message(new_fd, msg, 0);
 
     int n_identificador = get_valid_identifier(new_fd);
     if (n_identificador == -1)
         return;
 
     const char *msg2 = "Beleza, agora digite o(s) gênero(s) que deseja adicionar do filme. Se houver mais de um, separe por vírgulas.\n";
-    send_message(new_fd, msg2);
+    send_message(new_fd, msg2, 0);
 
     char *genero;
     recv_message(new_fd, &genero);
@@ -204,7 +205,7 @@ void option2(int new_fd)
 
     if (!found) {
         const char *error_msg = "Erro: Filme com este identificador não encontrado.\n";
-        send_message(new_fd, error_msg);
+        send_message(new_fd, error_msg, 0);
         remove("temp_filmes.csv"); // Clean up the temporary file
         return;
     }
@@ -213,19 +214,19 @@ void option2(int new_fd)
     if (rename("temp_filmes.csv", "filmes.csv") != 0) {
         perror("rename");
         const char *error_msg = "Erro: Não foi possível atualizar o arquivo de filmes.\n";
-        send_message(new_fd, error_msg);
+        send_message(new_fd, error_msg, 0);
         return;
     }
 
-    const char *success_msg = "Gênero adicionado com sucesso!<CONTINUE>\n";
-    send_message(new_fd, success_msg);
+    const char *success_msg = "Gênero adicionado com sucesso!\n";
+    send_message(new_fd, success_msg, 1);
 }
 
 void option3(int new_fd)
 {
     const char *msg = "Você escolheu a opção 3: Remover um filme pelo identificador.\n\
     Por favor, digite o identificador do filme que deseja remover.\n";
-    send_message(new_fd, msg);
+    send_message(new_fd, msg, 0);
 
     int n_identificador = get_valid_identifier(new_fd);
     if (n_identificador == -1)
@@ -262,18 +263,18 @@ void option3(int new_fd)
     if (rename("temp_filmes.csv", "filmes.csv") != 0) {
         perror("rename");
         const char *error_msg = "Erro: Não foi possível atualizar o arquivo de filmes.\n";
-        send_message(new_fd, error_msg);
+        send_message(new_fd, error_msg, 0);
         return;
     }
 
-    const char *success_msg = "Filme removido com sucesso!\n<CONTINUE>";
-    send_message(new_fd, success_msg);
+    const char *success_msg = "Filme removido com sucesso!\n";
+    send_message(new_fd, success_msg, 1);
 }
 
 void option4(int new_fd)
 {
-    const char *msg = "Você escolheu a opção 4: Listar todos os títulos de filmes com seus identificadores.\n<CONTINUE>";
-    send_message(new_fd, msg);
+    const char *msg = "Você escolheu a opção 4: Listar todos os títulos de filmes com seus identificadores.\n";
+    send_message(new_fd, msg, 1);
 
     FILE *file = fopen("filmes.csv", "r");
     if (file == NULL) {
@@ -287,20 +288,20 @@ void option4(int new_fd)
     while (fgets(line, sizeof(line), file)) {
         if (sscanf(line, "%d,\"%[^\"]\"", &id, titulo) == 2) {
             char formatted_line[MAXDATASIZE*2];
-            snprintf(formatted_line, sizeof(formatted_line), "ID: %d; Titulo: \"%s\"\n<CONTINUE>", id, titulo);
-            send_message(new_fd, formatted_line);
+            snprintf(formatted_line, sizeof(formatted_line), "ID: %d; Titulo: \"%s\"\n", id, titulo);
+            send_message(new_fd, formatted_line, 1);
         }
     }
 
-    const char *end_msg = "Fim da lista de filmes.\n<CONTINUE>";
-    send_message(new_fd, end_msg);
+    const char *end_msg = "Fim da lista de filmes.\n";
+    send_message(new_fd, end_msg, 1);
     fclose(file);
 }
 
 void option5(int new_fd)
 {
-    const char *msg = "Você escolheu a opção 5: Listar informações de todos os filmes.\n<CONTINUE>";
-    send_message(new_fd, msg);
+    const char *msg = "Você escolheu a opção 5: Listar informações de todos os filmes.\n";
+    send_message(new_fd, msg, 1);
 
     FILE *file = fopen("filmes.csv", "r");
     if (file == NULL) {
@@ -315,9 +316,9 @@ void option5(int new_fd)
         if (sscanf(line, "%d,\"%[^\"]\",\"%[^\"]\",\"%[^\"]\",\"%[^\"]\"", &id, titulo, genero, diretor, ano) == 5) {
             char formatted_line[MAXDATASIZE*4+100];
             snprintf(formatted_line, sizeof(formatted_line),
-                "ID: %d; Titulo: \"%s\"; Genero: \"%s\"; Diretor: \"%s\"; Ano: %s\n<CONTINUE>",
+                "ID: %d; Titulo: \"%s\"; Genero: \"%s\"; Diretor: \"%s\"; Ano: %s\n",
                 id, titulo, genero, diretor, ano);
-            send_message(new_fd, formatted_line);
+            send_message(new_fd, formatted_line, 1);
         }
     }
 
@@ -327,7 +328,7 @@ void option5(int new_fd)
 void option6(int new_fd){
     const char *msg = "Você escolheu a opção 6: Listar informações de um filme específico.\n\
     Por favor, digite o identificador do filme que deseja listar.\n";
-    send_message(new_fd, msg);
+    send_message(new_fd, msg, 0);
 
     int n_identificador = get_valid_identifier(new_fd);
     if (n_identificador == -1)
@@ -337,7 +338,7 @@ void option6(int new_fd){
     if (file == NULL) {
         perror("fopen");
         const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes.\n";
-        send_message(new_fd, error_msg);
+        send_message(new_fd, error_msg, 0);
         return;
     }
 
@@ -350,9 +351,9 @@ void option6(int new_fd){
             if (sscanf(line, "%*d,\"%[^\"]\",\"%[^\"]\",\"%[^\"]\",\"%[^\"]\"", titulo, genero, diretor, ano) == 4) {
                 char formatted_line[MAXDATASIZE * 4 + 100];
                 snprintf(formatted_line, sizeof(formatted_line),
-                    "ID: %d; Titulo: \"%s\"; Genero: \"%s\"; Diretor: \"%s\"; Ano: %s\n<CONTINUE>",
+                    "ID: %d; Titulo: \"%s\"; Genero: \"%s\"; Diretor: \"%s\"; Ano: %s\n",
                     id, titulo, genero, diretor, ano);
-                send_message(new_fd, formatted_line);
+                send_message(new_fd, formatted_line, 1);
             }
             break;
         }
@@ -365,7 +366,7 @@ void option7(int new_fd)
 {
     const char *msg = "Você escolheu a opção 7: Listar todos os filmes de um determinado gênero.\n\
     Por favor, digite o gênero que você deseja buscar.\n";
-    send_message(new_fd, msg);
+    send_message(new_fd, msg, 0);
 
     char *genero;
     recv_message(new_fd, &genero);
@@ -379,8 +380,8 @@ void option7(int new_fd)
     }
 
     // Send an initial message
-    const char *count_msg = "Buscando filmes...\n<CONTINUE>";
-    send_message(new_fd, count_msg);
+    const char *count_msg = "Buscando filmes...\n";
+    send_message(new_fd, count_msg, 1);
 
     int id, found = 0;
     char line[MAXDATASIZE];
@@ -390,8 +391,8 @@ void option7(int new_fd)
         if (sscanf(line, "%d,\"%[^\"]\",\"%[^\"]\",%*[^\n]", &id, movie_title, current_genero) == 3 &&
             strstr(current_genero, genero)) {                
                 char formatted_line[MAXDATASIZE*2];
-                snprintf(formatted_line, sizeof(formatted_line), "ID: %d; Titulo: \"%s\"\n<CONTINUE>", id, movie_title);
-                send_message(new_fd, formatted_line);
+                snprintf(formatted_line, sizeof(formatted_line), "ID: %d; Titulo: \"%s\"\n", id, movie_title);
+                send_message(new_fd, formatted_line, 1);
                 found++;
         }
     }
@@ -402,11 +403,11 @@ void option7(int new_fd)
     // Send the final message
     char *end_msg;
     if (found > 0) {
-        end_msg = "Fim da lista de filmes.\n<CONTINUE>";
+        end_msg = "Fim da lista de filmes.\n";
     } else {
-        end_msg = "Nenhum filme com este gênero foi encontrado.\n<CONTINUE>";
+        end_msg = "Nenhum filme com este gênero foi encontrado.\n";
     }
-    send_message(new_fd, end_msg);
+    send_message(new_fd, end_msg, 1);
 }
 
 void atender(int new_fd)
@@ -426,13 +427,14 @@ void atender(int new_fd)
     
     while(opcode != 8)
     {
-        send_message(new_fd, msg);
+        send_message(new_fd, msg, 0);
 
         printf("server: waiting for client message...\n");
         char *mensagem_recebida;
-        int numbytes = recv_message(new_fd, &mensagem_recebida);
 
-        if (numbytes == 0) {
+        retorno_recv numbytes = recv_message(new_fd, &mensagem_recebida);
+
+        if (numbytes.len == 0) {
             printf("client disconnected\n");
             free(mensagem_recebida);
             break;
@@ -444,7 +446,7 @@ void atender(int new_fd)
         // tenta obter um numero de resposta logo no começo da string. Se não conseguir envia uma mensagem de erro
         if (sscanf(mensagem_recebida, "%d", &opcode) != 1) {
             snprintf(resposta, sizeof(resposta), "Erro: comando inválido. Por favor, envie um número correspondente a uma operação.");
-            send_message(new_fd, resposta);
+            send_message(new_fd, resposta, 0);
             opcode = 0; // reset opcode to avoid unintended operations
             free(mensagem_recebida);
             continue;
@@ -485,12 +487,12 @@ void atender(int new_fd)
                 // Sair
                 strncpy(resposta, "Recebido '8', encerrando acesso.", sizeof(resposta) - 1);
                 resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
-                send_message(new_fd, resposta);
+                send_message(new_fd, resposta, 0);
                 break;
             default:
                 strncpy(resposta, "O número enviado não corresponde a nenhuma operação válida. Por favor, envie um número correspondente a uma operação.", sizeof(resposta) - 1);
                 resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
-                send_message(new_fd, resposta);
+                send_message(new_fd, resposta, 0);
                 break;
         }
     }

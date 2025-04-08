@@ -25,7 +25,7 @@ void sigchld_handler(int s)
     errno = saved_errno;
 }
 
-size_t send_message(int fd, const char *msg)
+size_t send_message(int fd, const char *msg, int continuar)
 {
     uint32_t len = strlen(msg) + 1; // include null terminator
     uint32_t len_net = htonl(len);  // convert to network byte order
@@ -37,6 +37,19 @@ size_t send_message(int fd, const char *msg)
         return 0;
     }
 
+    char continuando = '1';
+
+    if (continuar == 0)
+        continuando = '0';
+
+    // Send the continuation character
+    if (send(fd, &continuando, sizeof(continuando), 0) != sizeof(continuando))
+    {
+        perror("send continuation character");
+        return 0;
+    }
+
+    // Send the message body
     size_t total_sent = 0;
     while (total_sent < len) // handle partial sends
     {
@@ -53,25 +66,41 @@ size_t send_message(int fd, const char *msg)
     return total_sent;
 }
 
-size_t recv_message(int fd, char **buf)
+retorno_recv recv_message(int fd, char **buf)
 {
+    retorno_recv retornando;
+
+    retornando.len = 0;
+    retornando.continuando = 0;
+    
     if (!buf)
-        return 0;
+        return retornando;
+
 
     uint32_t len_net;
     ssize_t bytes_received = recv(fd, &len_net, sizeof(len_net), MSG_WAITALL);
     if (bytes_received != sizeof(len_net))
     {
         perror("recv length header");
-        return 0;
+        return retornando;
     }
+
+    char continuando;
+    ssize_t bytes_received2 = recv(fd, &continuando, sizeof(continuando), MSG_WAITALL);
+    if (bytes_received2 != sizeof(continuando))
+    {
+        perror("recv continue header");
+        return retornando;
+    }
+    if (continuando == '1')
+        retornando.continuando = 1;
 
     uint32_t len = ntohl(len_net);
 
     if (len == 0)
     {
         fprintf(stderr, "Warning: received message with length 0\n");
-        return 0;
+        return retornando;
     }
 
     *buf = malloc(len);
@@ -89,7 +118,7 @@ size_t recv_message(int fd, char **buf)
                 break;
             remaining -= drained;
         }
-        return 0;
+        return retornando;
     }
 
     size_t total_received = 0;
@@ -102,11 +131,13 @@ size_t recv_message(int fd, char **buf)
             perror("recv message body");
             free(*buf);
             *buf = NULL;
-            return 0;
+            return retornando;
         }
         total_received += bytes_received;
     }
 
     (*buf)[len - 1] = '\0';
-    return len - 1;
+
+    retornando.len = len-1;
+    return retornando;
 }
