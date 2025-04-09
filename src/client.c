@@ -26,7 +26,6 @@ void falar_com_server(int fd) {
             // printf("client: received '%s'\n", received);
 
             if(retorno.continuando == 1) {
-                printf("client: received continuation message\n");
                 lendo = 1;
             }
 

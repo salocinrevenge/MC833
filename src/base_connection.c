@@ -30,6 +30,21 @@ size_t send_message(int fd, const char *msg, int continuar)
     uint32_t len = strlen(msg) + 1; // include null terminator
     uint32_t len_net = htonl(len);  // convert to network byte order
 
+    // Check if the file descriptor is still valid
+    // char test_buf;
+    // printf("tentando enviar\n");
+    // ssize_t test_send = send(fd, &test_buf, 1, MSG_PEEK | MSG_DONTWAIT);
+    // if (test_send == 0)
+    // {
+    //     fprintf(stderr, "Connection closed by peer\n");
+    //     return 0;
+    // }
+    // else if (test_send == -1 && errno != EAGAIN && errno != EWOULDBLOCK)
+    // {
+    //     perror("send test");
+    //     return 0;
+    // }
+
     // Send the 4-byte header
     if (send(fd, &len_net, sizeof(len_net), 0) != sizeof(len_net))
     {
@@ -76,6 +91,19 @@ retorno_recv recv_message(int fd, char **buf)
     if (!buf)
         return retornando;
 
+    // // Check if the file descriptor is still valid
+    // char test_buf;
+    // ssize_t test_recv = recv(fd, &test_buf, 1, MSG_PEEK | MSG_DONTWAIT);
+    // if (test_recv == 0)
+    // {
+    //     fprintf(stderr, "Connection closed by peer\n");
+    //     return retornando;
+    // }
+    // else if (test_recv == -1 && errno != EAGAIN && errno != EWOULDBLOCK)
+    // {
+    //     perror("recv test");
+    //     return retornando;
+    // }
 
     uint32_t len_net;
     ssize_t bytes_received = recv(fd, &len_net, sizeof(len_net), MSG_WAITALL);
@@ -137,7 +165,6 @@ retorno_recv recv_message(int fd, char **buf)
     }
 
     (*buf)[len - 1] = '\0';
-
     retornando.len = len-1;
     return retornando;
 }

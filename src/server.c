@@ -13,6 +13,7 @@
 #define BACKLOG 10   // how many pending connections queue will hold
 
 pthread_mutex_t file_mutex;
+pthread_mutex_t temp_file_mutex;
 
 
 int count_lines(FILE *file)
@@ -26,6 +27,39 @@ int count_lines(FILE *file)
     rewind(file);
     return lines;
 }
+
+FILE *abrir_arquivo(char *path, char *mode)
+{
+    printf("pegando lock de %s\n", path);
+    if (strcmp(path, "temp_filmes.csv") == 0) {
+        pthread_mutex_lock(&temp_file_mutex);
+    } else {
+        pthread_mutex_lock(&file_mutex);
+    }
+    printf("lock de %s adquirido\n", path);
+    sleep(1);
+    FILE *file = fopen(path, mode);
+    if (file == NULL) {
+        perror("fopen");
+        return NULL;
+    }
+    return file;
+}
+
+void fechar_arquivo(FILE *file, char *path)
+{
+    if (file != NULL) {
+        fclose(file);
+    }
+    printf("liberando o lock de %s\n", path);
+    if (strcmp(path, "temp_filmes.csv") == 0) {
+        pthread_mutex_unlock(&temp_file_mutex);
+    } else {
+        pthread_mutex_unlock(&file_mutex);
+    }
+    printf("libera o lock de %s\n", path);
+}
+
 
 int get_valid_identifier(int fd) {
     int n_identificador;
@@ -44,13 +78,14 @@ int get_valid_identifier(int fd) {
         free(identificador);
 
         // Check if the identifier exists in the file
-        FILE *file = fopen("filmes.csv", "r");
+        FILE *file = abrir_arquivo("filmes.csv", "r");
         if (file == NULL) {
             const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
             send_message(fd, error_msg, 0);
             printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
             return -1;
         }
+
         int id, found = 0;
         char line[MAXDATASIZE];
         while (fgets(line, sizeof(line), file)) {
@@ -59,7 +94,7 @@ int get_valid_identifier(int fd) {
                 break;
             }
         }
-        fclose(file);
+        fechar_arquivo(file, "filmes.csv");
 
         if (!found) {
             const char *error_msg = "Erro: Filme com este identificador não encontrado.\n";
@@ -73,12 +108,19 @@ int get_valid_identifier(int fd) {
 
 void option1(int new_fd)
 {
+    retorno_recv numbytes;
+
     const char *msg = "Você escolheu a opção 1: Cadastrar um novo filme.\n\
     Por favor, digite o titulo do filme que deseja cadastrar.\n";
     send_message(new_fd, msg, 0);
 
     char *nome;
-    recv_message(new_fd, &nome);
+    numbytes = recv_message(new_fd, &nome);
+    if (numbytes.len == 0) {
+        printf("client disconnected\n");
+        return;
+    }
+    printf("server: received nome\n");
 
     // Get movie genre(s)
     const char *msg2 = "Beleza, agora digite o(s) gênero(s) do filme.\
@@ -86,14 +128,24 @@ void option1(int new_fd)
     send_message(new_fd, msg2, 0);
 
     char *genero;
-    recv_message(new_fd, &genero);
+    numbytes = recv_message(new_fd, &genero);
+    if (numbytes.len == 0) {
+        printf("client disconnected\n");
+        return;
+    }
+    printf("server: received genero\n");
 
     // Get movie director
     const char *msg3 = "Ok, insira agora o diretor.\n";
     send_message(new_fd, msg3, 0);
 
     char *diretor;
-    recv_message(new_fd, &diretor);
+    numbytes = recv_message(new_fd, &diretor);
+    if (numbytes.len == 0) {
+        printf("client disconnected on diretor\n");
+        return;
+    }
+    printf("server: received diretor\n");
 
     // Get movie year
     const char *msg4 = "E agora, qual foi o ano?\n";
@@ -115,10 +167,12 @@ void option1(int new_fd)
         valido = 1;
     }
 
-    pthread_mutex_lock(&file_mutex);
-    FILE *file = fopen("filmes.csv", "a+");
+    
+    FILE *file = abrir_arquivo("filmes.csv", "a+");
     if (file == NULL) {
-        perror("fopen");
+        const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
+        send_message(new_fd, error_msg, 0);
+        printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
         return;
     }
 
@@ -129,8 +183,8 @@ void option1(int new_fd)
     }
 
     fprintf(file, "%d,\"%s\",\"%s\",\"%s\",\"%d\"\n", identificador, nome, genero, diretor, ano_int);
-    fclose(file);
-    pthread_mutex_unlock(&file_mutex);
+    fechar_arquivo(file, "filmes.csv");
+    
 
     const char *msg5 = " Legal! Filme inserido!\n";
     send_message(new_fd, msg5, 1);
@@ -158,18 +212,22 @@ void option2(int new_fd)
     recv_message(new_fd, &genero);
 
     // Open the file for reading
-    FILE *file = fopen("filmes.csv", "r");
+    FILE *file = abrir_arquivo("filmes.csv", "r");
     if (file == NULL) {
-        perror("fopen");
+        const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
+        send_message(new_fd, error_msg, 0);
+        printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
         free(genero);
         return;
     }
 
     // Open a temporary file for writing
-    FILE *temp_file = fopen("temp_filmes.csv", "w");
+    FILE *temp_file = abrir_arquivo("temp_filmes.csv", "w");
     if (temp_file == NULL) {
-        perror("fopen");
-        fclose(file);
+        const char *error_msg = "Erro: Não foi possível abrir o arquivo temporário. Problemas técnicos, consulte um ADM :(\n";
+        send_message(new_fd, error_msg, 0);
+        printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
+        fechar_arquivo(file, "filmes.csv");
         free(genero);
         return;
     }
@@ -199,8 +257,8 @@ void option2(int new_fd)
         }
     }
 
-    fclose(file);
-    fclose(temp_file);
+    fechar_arquivo(file, "filmes.csv");
+    fechar_arquivo(temp_file, "temp_filmes.csv");
     free(genero);
 
     if (!found) {
@@ -233,17 +291,21 @@ void option3(int new_fd)
         return;
 
     // Open the file for reading
-    FILE *file = fopen("filmes.csv", "r");
+    FILE *file = abrir_arquivo("filmes.csv", "r");
     if (file == NULL) {
-        perror("fopen");
+        const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
+        send_message(new_fd, error_msg, 0);
+        printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
         return;
     }
 
     // Open a temporary file for writing
-    FILE *temp_file = fopen("temp_filmes.csv", "w");
+    FILE *temp_file = abrir_arquivo("temp_filmes.csv", "w");
     if (temp_file == NULL) {
-        perror("fopen");
-        fclose(file);
+        const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
+        send_message(new_fd, error_msg, 0);
+        printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
+        fechar_arquivo(file, "filmes.csv");
         return;
     }
 
@@ -256,8 +318,8 @@ void option3(int new_fd)
         }
     }
 
-    fclose(file);
-    fclose(temp_file);
+    fechar_arquivo(file, "filmes.csv");
+    fechar_arquivo(temp_file, "temp_filmes.csv");
 
     // Replace the original file with the temporary file
     if (rename("temp_filmes.csv", "filmes.csv") != 0) {
@@ -276,9 +338,11 @@ void option4(int new_fd)
     const char *msg = "Você escolheu a opção 4: Listar todos os títulos de filmes com seus identificadores.\n";
     send_message(new_fd, msg, 1);
 
-    FILE *file = fopen("filmes.csv", "r");
+    FILE *file = abrir_arquivo("filmes.csv", "r");
     if (file == NULL) {
-        perror("fopen");
+        const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
+        send_message(new_fd, error_msg, 0);
+        printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
         return;
     }
 
@@ -295,7 +359,7 @@ void option4(int new_fd)
 
     const char *end_msg = "Fim da lista de filmes.\n";
     send_message(new_fd, end_msg, 1);
-    fclose(file);
+    fechar_arquivo(file, "filmes.csv");
 }
 
 void option5(int new_fd)
@@ -303,9 +367,11 @@ void option5(int new_fd)
     const char *msg = "Você escolheu a opção 5: Listar informações de todos os filmes.\n";
     send_message(new_fd, msg, 1);
 
-    FILE *file = fopen("filmes.csv", "r");
+    FILE *file = abrir_arquivo("filmes.csv", "r");
     if (file == NULL) {
-        perror("fopen");
+        const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
+        send_message(new_fd, error_msg, 0);
+        printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
         return;
     }
 
@@ -322,7 +388,7 @@ void option5(int new_fd)
         }
     }
 
-    fclose(file);
+    fechar_arquivo(file, "filmes.csv");
 }
 
 void option6(int new_fd){
@@ -334,11 +400,11 @@ void option6(int new_fd){
     if (n_identificador == -1)
         return;
 
-    FILE *file = fopen("filmes.csv", "r");
+    FILE *file = abrir_arquivo("filmes.csv", "r");
     if (file == NULL) {
-        perror("fopen");
-        const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes.\n";
+        const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
         send_message(new_fd, error_msg, 0);
+        printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
         return;
     }
 
@@ -359,7 +425,7 @@ void option6(int new_fd){
         }
     }
 
-    fclose(file);
+    fechar_arquivo(file, "filmes.csv");
 }
 
 void option7(int new_fd)
@@ -372,9 +438,11 @@ void option7(int new_fd)
     recv_message(new_fd, &genero);
 
     // Open the file for reading
-    FILE *file = fopen("filmes.csv", "r");
+    FILE *file = abrir_arquivo("filmes.csv", "r");
     if (file == NULL) {
-        perror("fopen");
+        const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
+        send_message(new_fd, error_msg, 0);
+        printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
         free(genero);
         return;
     }
@@ -397,7 +465,7 @@ void option7(int new_fd)
         }
     }
 
-    fclose(file);
+    fechar_arquivo(file, "filmes.csv");
     free(genero);
 
     // Send the final message
@@ -410,8 +478,9 @@ void option7(int new_fd)
     send_message(new_fd, end_msg, 1);
 }
 
-void atender(int new_fd)
+void atender(int *p_new_fd)
 {
+    int new_fd = *p_new_fd;
     int opcode = 0;
     char resposta[MAXDATASIZE*2];
     const char *msg = "\nOlá, cliente! Você se conectou ao servidor com sucesso!\n\
@@ -427,7 +496,9 @@ void atender(int new_fd)
     
     while(opcode != 8)
     {
-        send_message(new_fd, msg, 0);
+        printf("Enviando menu\n");
+        size_t retcode = send_message(new_fd, msg, 0);
+        printf("retcode: %zu\n", retcode);
 
         printf("server: waiting for client message...\n");
         char *mensagem_recebida;
@@ -436,7 +507,6 @@ void atender(int new_fd)
 
         if (numbytes.len == 0) {
             printf("client disconnected\n");
-            free(mensagem_recebida);
             break;
         }
         printf("server: received '%s'\n", mensagem_recebida);
@@ -488,6 +558,7 @@ void atender(int new_fd)
                 strncpy(resposta, "Recebido '8', encerrando acesso.", sizeof(resposta) - 1);
                 resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
                 send_message(new_fd, resposta, 0);
+                printf("client disconnected\n");
                 break;
             default:
                 strncpy(resposta, "O número enviado não corresponde a nenhuma operação válida. Por favor, envie um número correspondente a uma operação.", sizeof(resposta) - 1);
@@ -496,6 +567,8 @@ void atender(int new_fd)
                 break;
         }
     }
+    close(new_fd);
+    free(p_new_fd);
 }
 
 int main(void)
@@ -577,15 +650,30 @@ int main(void)
             s, sizeof s);
         printf("server: got connection from %s\n", s);
 
-        if (!fork()) { // this is the child process
-            close(sockfd); // child doesn't need the listener
-            atender(new_fd);
+
+        pthread_t thread_id;
+
+        int *fd_ptr = malloc(sizeof(int));
+        if (fd_ptr == NULL) {
+            perror("malloc");
             close(new_fd);
-            exit(0);
+            continue;
         }
-        close(new_fd);  // parent doesn't need this
+
+        
+        *fd_ptr = new_fd;
+        if (pthread_create(&thread_id, NULL, (void *(*)(void *))atender, fd_ptr) != 0) {
+            perror("pthread_create");
+            free(fd_ptr);
+            close(new_fd);
+            continue;
+        }
+
+        pthread_detach(thread_id); // Detach the thread to avoid memory leaks
+        // close(new_fd);  // parent doesn't need this
     }
 
     pthread_mutex_destroy(&file_mutex);
+    pthread_mutex_destroy(&temp_file_mutex);
     return 0;
 }
