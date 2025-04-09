@@ -46,8 +46,11 @@ size_t send_message(int fd, const char *msg, int continuar)
     // }
 
     // Send the 4-byte header
+    // printf("Bytes sent for length header: %zd\n", send(fd, &len_net, sizeof(len_net), 0));
     if (send(fd, &len_net, sizeof(len_net), 0) != sizeof(len_net))
     {
+        printf("erro");
+        printf("Error sending message length: %s\n", strerror(errno));
         perror("send message header");
         return 0;
     }
