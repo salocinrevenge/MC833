@@ -30,14 +30,11 @@ int count_lines(FILE *file)
 
 FILE *abrir_arquivo(char *path, char *mode)
 {
-    printf("pegando lock de %s\n", path);
     if (strcmp(path, "temp_filmes.csv") == 0) {
         pthread_mutex_lock(&temp_file_mutex);
     } else {
         pthread_mutex_lock(&file_mutex);
     }
-    printf("lock de %s adquirido\n", path);
-    sleep(1);
     FILE *file = fopen(path, mode);
     if (file == NULL) {
         perror("fopen");
@@ -51,13 +48,11 @@ void fechar_arquivo(FILE *file, char *path)
     if (file != NULL) {
         fclose(file);
     }
-    printf("liberando o lock de %s\n", path);
     if (strcmp(path, "temp_filmes.csv") == 0) {
         pthread_mutex_unlock(&temp_file_mutex);
     } else {
         pthread_mutex_unlock(&file_mutex);
     }
-    printf("libera o lock de %s\n", path);
 }
 
 
@@ -124,7 +119,6 @@ int option1(int new_fd)
         printf("client disconnected\n");
         return -1;
     }
-    printf("server: received nome\n");
 
     // Get movie genre(s)
     const char *msg2 = "Beleza, agora digite o(s) gênero(s) do filme.\
@@ -163,7 +157,6 @@ int option1(int new_fd)
             printf("client disconnected on diretor\n");
             return -1;
         }
-        printf("server: received '%s'\n", ano);
         if (sscanf(ano, "%d", &ano_int) != 1) {
             const char *error_msg = "Erro: Ano inválido. Por favor, insira um número.\n";
             send_message(new_fd, error_msg, 0);
@@ -526,7 +519,6 @@ void atender(int *p_new_fd)
     {
         retcode = send_message(new_fd, msg, 0);
 
-        printf("server: waiting for client message...\n");
         char *mensagem_recebida;
 
         numbytes = recv_message(new_fd, &mensagem_recebida);
@@ -536,7 +528,6 @@ void atender(int *p_new_fd)
             opcode = 8; // Set opcode to 8 to exit the loop
             break;
         }
-        printf("server: received '%s'\n", mensagem_recebida);
         memset(resposta, 0, sizeof(resposta)); // anula a resposta
         snprintf(resposta, sizeof(resposta), "recebido: %s", mensagem_recebida);     // adiciona cabeçalho na resposta
 
