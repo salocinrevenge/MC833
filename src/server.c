@@ -613,8 +613,8 @@ void atender(int *p_new_fd)
     int new_fd = *p_new_fd;
     int opcode = 0;
     char resposta[MAXDATASIZE * 2];
-    const char *msg = "\nOlá, cliente! Você se conectou ao servidor com sucesso!\n\
-    Você pode realizar as seguintes operações:\n\
+    const char *welcome_msg = "Olá, cliente! Você se conectou ao servidor com sucesso!\n";
+    const char *menu_msg = "Você pode realizar as seguintes operações:\n\
     (1) Cadastrar um novo filme\n\
     (2) Adicionar um novo gênero a um filme\n\
     (3) Remover um filme pelo identificador\n\
@@ -625,10 +625,14 @@ void atender(int *p_new_fd)
     (8) Sair\n";
     size_t retcode;
     retorno_recv numbytes;
+    int send_menu = 1;
+
+    send_message(new_fd, welcome_msg, 1);
 
     while (opcode != 8)
     {
-        retcode = send_message(new_fd, msg, 0);
+        if (send_menu)
+            retcode = send_message(new_fd, menu_msg, 0);
 
         char *mensagem_recebida;
 
@@ -646,9 +650,10 @@ void atender(int *p_new_fd)
         // tenta obter um numero de resposta logo no começo da string. Se não conseguir envia uma mensagem de erro
         if (sscanf(mensagem_recebida, "%d", &opcode) != 1)
         {
-            snprintf(resposta, sizeof(resposta), "Erro: comando inválido. Por favor, envie um número correspondente a uma operação.");
+            snprintf(resposta, sizeof(resposta), "Erro: comando inválido. Por favor, envie um número correspondente a uma operação.\n");
             send_message(new_fd, resposta, 0);
             opcode = 0; // reset opcode to avoid unintended operations
+            send_menu = 0;
             free(mensagem_recebida);
             continue;
         }
@@ -660,30 +665,37 @@ void atender(int *p_new_fd)
         case 1:
             // Cadastrar um novo filme
             result = option1(new_fd);
+            send_menu = 1;
             break;
         case 2:
             // Adicionar um novo gênero a um filme
             result = option2(new_fd);
+            send_menu = 1;
             break;
         case 3:
             // Remover um filme pelo identificador
             result = option3(new_fd);
+            send_menu = 1;
             break;
         case 4:
             // Listar todos os títulos de filmes com seus identificadores
             result = option4(new_fd);
+            send_menu = 1;
             break;
         case 5:
             // Listar informações de todos os filmes
             result = option5(new_fd);
+            send_menu = 1;
             break;
         case 6:
             // Listar informações de um filme específico
             result = option6(new_fd);
+            send_menu = 1;
             break;
         case 7:
             // Listar todos os filmes de um determinado gênero
             result = option7(new_fd);
+            send_menu = 1;
             break;
         case 8:
             // Sair
@@ -693,9 +705,10 @@ void atender(int *p_new_fd)
             printf("client disconnected\n");
             break;
         default:
-            strncpy(resposta, "O número enviado não corresponde a nenhuma operação válida. Por favor, envie um número correspondente a uma operação.", sizeof(resposta) - 1);
+            strncpy(resposta, "Erro: O número enviado não corresponde a nenhuma operação válida. Por favor, envie um número correspondente a uma operação.\n", sizeof(resposta) - 1);
             resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
             send_message(new_fd, resposta, 0);
+            send_menu = 0;
             break;
         }
         if (result == -1)
