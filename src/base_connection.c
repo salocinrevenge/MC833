@@ -30,26 +30,9 @@ size_t send_message(int fd, const char *msg, int continuar)
     uint32_t len = strlen(msg) + 1; // include null terminator
     uint32_t len_net = htonl(len);  // convert to network byte order
 
-    // Check if the file descriptor is still valid
-    // char test_buf;
-    // printf("tentando enviar\n");
-    // ssize_t test_send = send(fd, &test_buf, 1, MSG_PEEK | MSG_DONTWAIT);
-    // if (test_send == 0)
-    // {
-    //     fprintf(stderr, "Connection closed by peer\n");
-    //     return 0;
-    // }
-    // else if (test_send == -1 && errno != EAGAIN && errno != EWOULDBLOCK)
-    // {
-    //     perror("send test");
-    //     return 0;
-    // }
-
     // Send the 4-byte header
-    // printf("Bytes sent for length header: %zd\n", send(fd, &len_net, sizeof(len_net), 0));
     if (send(fd, &len_net, sizeof(len_net), 0) != sizeof(len_net))
     {
-        printf("erro");
         printf("Error sending message length: %s\n", strerror(errno));
         perror("send message header");
         return 0;
@@ -90,24 +73,11 @@ retorno_recv recv_message(int fd, char **buf)
 
     retornando.len = 0;
     retornando.continuando = 0;
-    
+
     if (!buf)
         return retornando;
 
-    // // Check if the file descriptor is still valid
-    // char test_buf;
-    // ssize_t test_recv = recv(fd, &test_buf, 1, MSG_PEEK | MSG_DONTWAIT);
-    // if (test_recv == 0)
-    // {
-    //     fprintf(stderr, "Connection closed by peer\n");
-    //     return retornando;
-    // }
-    // else if (test_recv == -1 && errno != EAGAIN && errno != EWOULDBLOCK)
-    // {
-    //     perror("recv test");
-    //     return retornando;
-    // }
-
+    // Receive 4-byte header
     uint32_t len_net;
     ssize_t bytes_received = recv(fd, &len_net, sizeof(len_net), MSG_WAITALL);
     if (bytes_received != sizeof(len_net))
@@ -116,6 +86,7 @@ retorno_recv recv_message(int fd, char **buf)
         return retornando;
     }
 
+    // Receive the continuation character
     char continuando;
     ssize_t bytes_received2 = recv(fd, &continuando, sizeof(continuando), MSG_WAITALL);
     if (bytes_received2 != sizeof(continuando))
@@ -134,6 +105,7 @@ retorno_recv recv_message(int fd, char **buf)
         return retornando;
     }
 
+    // Allocate a buffer for the message
     *buf = malloc(len);
     if (!*buf)
     {
@@ -152,6 +124,7 @@ retorno_recv recv_message(int fd, char **buf)
         return retornando;
     }
 
+    // Receive the message body
     size_t total_received = 0;
     while (total_received < len)
     {
@@ -168,6 +141,6 @@ retorno_recv recv_message(int fd, char **buf)
     }
 
     (*buf)[len - 1] = '\0';
-    retornando.len = len-1;
+    retornando.len = len - 1;
     return retornando;
 }

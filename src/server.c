@@ -10,12 +10,18 @@
 #include <signal.h>
 #include <pthread.h>
 
-#define BACKLOG 10   // how many pending connections queue will hold
+#define BACKLOG 10 // how many pending connections queue will hold
 
 pthread_mutex_t file_mutex;
 pthread_mutex_t temp_file_mutex;
 
-
+/**
+ * Counts the number of lines in a given file.
+ * Rewinds the file pointer to the beginning after counting.
+ *
+ * @param file Pointer to the opened file.
+ * @return Number of lines in the file.
+ */
 int count_lines(FILE *file)
 {
     int lines = 0;
@@ -28,47 +34,70 @@ int count_lines(FILE *file)
     return lines;
 }
 
+/**
+ * Opens a file with the given path and mode, applying the appropriate mutex lock.
+ *
+ * @param path Path to the file.
+ * @param mode Mode in which to open the file.
+ * @return Pointer to the opened file, or NULL on error.
+ */
 FILE *abrir_arquivo(char *path, char *mode)
 {
-    if (strcmp(path, "temp_filmes.csv") == 0) {
+    if (strcmp(path, "temp_filmes.csv") == 0)
         pthread_mutex_lock(&temp_file_mutex);
-    } else {
+    else
         pthread_mutex_lock(&file_mutex);
-    }
+
     FILE *file = fopen(path, mode);
-    if (file == NULL) {
+    if (file == NULL)
+    {
         perror("fopen");
         return NULL;
     }
     return file;
 }
 
+/**
+ * Closes the given file and releases the appropriate mutex lock based on the file path.
+ *
+ * @param file Pointer to the file to close.
+ * @param path Path to the file (used to determine which mutex to unlock).
+ */
 void fechar_arquivo(FILE *file, char *path)
 {
-    if (file != NULL) {
+    if (file != NULL)
         fclose(file);
-    }
-    if (strcmp(path, "temp_filmes.csv") == 0) {
+
+    if (strcmp(path, "temp_filmes.csv") == 0)
         pthread_mutex_unlock(&temp_file_mutex);
-    } else {
+    else
         pthread_mutex_unlock(&file_mutex);
-    }
 }
 
-
-int get_valid_identifier(int fd) {
+/**
+ * Receives and validates a movie identifier from the client.
+ * Ensures the identifier corresponds to an existing record in "filmes.csv".
+ *
+ * @param fd File descriptor for the client connection.
+ * @return Valid movie identifier, or -1 on error/disconnection.
+ */
+int get_valid_identifier(int fd)
+{
     int n_identificador;
     int valid = 0;
-    while (!valid) {  // Garante que o identificador é válido
+    while (!valid)
+    {
         char *identificador;
         retorno_recv a = recv_message(fd, &identificador);
-        if( a.len == 0) {
+        if (a.len == 0)
+        {
             printf("client disconnected\n");
             return -1;
         }
 
         // Convert string identificador to integer
-        if (sscanf(identificador, "%d", &n_identificador) != 1) {
+        if (sscanf(identificador, "%d", &n_identificador) != 1)
+        {
             const char *error_msg = "Erro: Identificador inválido. Por favor, insira um número.\n";
             send_message(fd, error_msg, 0);
             free(identificador);
@@ -78,7 +107,8 @@ int get_valid_identifier(int fd) {
 
         // Check if the identifier exists in the file
         FILE *file = abrir_arquivo("filmes.csv", "r");
-        if (file == NULL) {
+        if (file == NULL)
+        {
             const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
             send_message(fd, error_msg, 0);
             printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
@@ -87,15 +117,18 @@ int get_valid_identifier(int fd) {
 
         int id, found = 0;
         char line[MAXDATASIZE];
-        while (fgets(line, sizeof(line), file)) {
-            if (sscanf(line, "%d,", &id) == 1 && id == n_identificador) {
+        while (fgets(line, sizeof(line), file))
+        {
+            if (sscanf(line, "%d,", &id) == 1 && id == n_identificador)
+            {
                 found = 1;
                 break;
             }
         }
         fechar_arquivo(file, "filmes.csv");
 
-        if (!found) {
+        if (!found)
+        {
             const char *error_msg = "Erro: Filme com este identificador não encontrado.\n";
             send_message(fd, error_msg, 0);
             continue;
@@ -105,6 +138,13 @@ int get_valid_identifier(int fd) {
     return n_identificador;
 }
 
+/**
+ * Handles client option 1: Register a new movie.
+ * Collects title, genre(s), director, and year from the client, and appends it to "filmes.csv".
+ *
+ * @param new_fd File descriptor for the client connection.
+ * @return 0 on success, -1 on error.
+ */
 int option1(int new_fd)
 {
     retorno_recv numbytes;
@@ -115,7 +155,8 @@ int option1(int new_fd)
 
     char *nome;
     numbytes = recv_message(new_fd, &nome);
-    if (numbytes.len == 0) {
+    if (numbytes.len == 0)
+    {
         printf("client disconnected\n");
         return -1;
     }
@@ -127,7 +168,8 @@ int option1(int new_fd)
 
     char *genero;
     numbytes = recv_message(new_fd, &genero);
-    if (numbytes.len == 0) {
+    if (numbytes.len == 0)
+    {
         printf("client disconnected\n");
         return -1;
     }
@@ -138,7 +180,8 @@ int option1(int new_fd)
 
     char *diretor;
     numbytes = recv_message(new_fd, &diretor);
-    if (numbytes.len == 0) {
+    if (numbytes.len == 0)
+    {
         printf("client disconnected on diretor\n");
         return -1;
     }
@@ -153,11 +196,13 @@ int option1(int new_fd)
     while (!valido)
     {
         numbytes = recv_message(new_fd, &ano);
-        if (numbytes.len == 0) {
+        if (numbytes.len == 0)
+        {
             printf("client disconnected on diretor\n");
             return -1;
         }
-        if (sscanf(ano, "%d", &ano_int) != 1) {
+        if (sscanf(ano, "%d", &ano_int) != 1)
+        {
             const char *error_msg = "Erro: Ano inválido. Por favor, insira um número.\n";
             send_message(new_fd, error_msg, 0);
             free(ano);
@@ -166,9 +211,9 @@ int option1(int new_fd)
         valido = 1;
     }
 
-    
     FILE *file = abrir_arquivo("filmes.csv", "a+");
-    if (file == NULL) {
+    if (file == NULL)
+    {
         const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
         send_message(new_fd, error_msg, 0);
         printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
@@ -176,18 +221,18 @@ int option1(int new_fd)
     }
 
     int identificador = count_lines(file);
-    if (identificador == -1) {
+    if (identificador == -1)
+    {
         perror("count_lines");
         return -1;
     }
 
     fprintf(file, "%d,\"%s\",\"%s\",\"%s\",\"%d\"\n", identificador, nome, genero, diretor, ano_int);
     fechar_arquivo(file, "filmes.csv");
-    
 
     const char *msg5 = " Legal! Filme inserido!\n";
     send_message(new_fd, msg5, 1);
-    
+
     free(nome);
     free(genero);
     free(diretor);
@@ -195,6 +240,13 @@ int option1(int new_fd)
     return 0;
 }
 
+/**
+ * Handles client option 2: Add a new genre to an existing movie.
+ * Updates the corresponding record in "filmes.csv" using a temporary file.
+ *
+ * @param new_fd File descriptor for the client connection.
+ * @return 0 on success, -1 on error.
+ */
 int option2(int new_fd)
 {
     retorno_recv numbytes;
@@ -211,15 +263,16 @@ int option2(int new_fd)
 
     char *genero;
     numbytes = recv_message(new_fd, &genero);
-    if (numbytes.len == 0) {
+    if (numbytes.len == 0)
+    {
         printf("client disconnected on diretor\n");
         return -1;
     }
 
-
     // Open the file for reading
     FILE *file = abrir_arquivo("filmes.csv", "r");
-    if (file == NULL) {
+    if (file == NULL)
+    {
         const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
         send_message(new_fd, error_msg, 0);
         printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
@@ -229,7 +282,8 @@ int option2(int new_fd)
 
     // Open a temporary file for writing
     FILE *temp_file = abrir_arquivo("temp_filmes.csv", "w");
-    if (temp_file == NULL) {
+    if (temp_file == NULL)
+    {
         const char *error_msg = "Erro: Não foi possível abrir o arquivo temporário. Problemas técnicos, consulte um ADM :(\n";
         send_message(new_fd, error_msg, 0);
         printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
@@ -241,8 +295,10 @@ int option2(int new_fd)
     // Read the file line by line and find the matching identifier
     char line[MAXDATASIZE];
     int id, found = 0;
-    while (fgets(line, sizeof(line), file)) {
-        if (sscanf(line, "%d,", &id) == 1 && id == n_identificador) {
+    while (fgets(line, sizeof(line), file))
+    {
+        if (sscanf(line, "%d,", &id) == 1 && id == n_identificador)
+        {
             found = 1;
 
             // Parse the line to extract the current genres
@@ -257,7 +313,9 @@ int option2(int new_fd)
 
             // Write the updated line to the temporary file
             fprintf(temp_file, "%d,\"%s\",\"%s\",%s\n", id, before_genero, current_genero, rest_of_line);
-        } else {
+        }
+        else
+        {
             // Write the original line to the temporary file
             fputs(line, temp_file);
         }
@@ -267,7 +325,8 @@ int option2(int new_fd)
     fechar_arquivo(temp_file, "temp_filmes.csv");
     free(genero);
 
-    if (!found) {
+    if (!found)
+    {
         const char *error_msg = "Erro: Filme com este identificador não encontrado.\n";
         send_message(new_fd, error_msg, 0);
         remove("temp_filmes.csv"); // Clean up the temporary file
@@ -275,7 +334,8 @@ int option2(int new_fd)
     }
 
     // Replace the original file with the temporary file
-    if (rename("temp_filmes.csv", "filmes.csv") != 0) {
+    if (rename("temp_filmes.csv", "filmes.csv") != 0)
+    {
         perror("rename");
         const char *error_msg = "Erro: Não foi possível atualizar o arquivo de filmes.\n";
         send_message(new_fd, error_msg, 0);
@@ -287,6 +347,13 @@ int option2(int new_fd)
     return 0;
 }
 
+/**
+ * Handles client option 3: Remove a movie by its identifier.
+ * Creates a temporary file excluding the record to be removed.
+ *
+ * @param new_fd File descriptor for the client connection.
+ * @return 0 on success, -1 on error.
+ */
 int option3(int new_fd)
 {
     const char *msg = "Você escolheu a opção 3: Remover um filme pelo identificador.\n\
@@ -299,7 +366,8 @@ int option3(int new_fd)
 
     // Open the file for reading
     FILE *file = abrir_arquivo("filmes.csv", "r");
-    if (file == NULL) {
+    if (file == NULL)
+    {
         const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
         send_message(new_fd, error_msg, 0);
         printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
@@ -308,7 +376,8 @@ int option3(int new_fd)
 
     // Open a temporary file for writing
     FILE *temp_file = abrir_arquivo("temp_filmes.csv", "w");
-    if (temp_file == NULL) {
+    if (temp_file == NULL)
+    {
         const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
         send_message(new_fd, error_msg, 0);
         printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
@@ -319,17 +388,16 @@ int option3(int new_fd)
     // Write every line except the one with the matching id to the temporary file
     char line[MAXDATASIZE];
     int id, found = 0;
-    while (fgets(line, sizeof(line), file)) {
-        if (!(sscanf(line, "%d,", &id) == 1 && id == n_identificador)) {
+    while (fgets(line, sizeof(line), file))
+        if (!(sscanf(line, "%d,", &id) == 1 && id == n_identificador))
             fputs(line, temp_file);
-        }
-    }
 
     fechar_arquivo(file, "filmes.csv");
     fechar_arquivo(temp_file, "temp_filmes.csv");
 
     // Replace the original file with the temporary file
-    if (rename("temp_filmes.csv", "filmes.csv") != 0) {
+    if (rename("temp_filmes.csv", "filmes.csv") != 0)
+    {
         perror("rename");
         const char *error_msg = "Erro: Não foi possível atualizar o arquivo de filmes.\n";
         send_message(new_fd, error_msg, 0);
@@ -341,13 +409,20 @@ int option3(int new_fd)
     return 0;
 }
 
+/**
+ * Handles client option 4: List all movie titles with their identifiers.
+ *
+ * @param new_fd File descriptor for the client connection.
+ * @return 0 on success, -1 on error.
+ */
 int option4(int new_fd)
 {
     const char *msg = "Você escolheu a opção 4: Listar todos os títulos de filmes com seus identificadores.\n";
     send_message(new_fd, msg, 1);
 
     FILE *file = abrir_arquivo("filmes.csv", "r");
-    if (file == NULL) {
+    if (file == NULL)
+    {
         const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
         send_message(new_fd, error_msg, 0);
         printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
@@ -357,9 +432,11 @@ int option4(int new_fd)
     int id;
     char line[MAXDATASIZE];
     char titulo[MAXDATASIZE];
-    while (fgets(line, sizeof(line), file)) {
-        if (sscanf(line, "%d,\"%[^\"]\"", &id, titulo) == 2) {
-            char formatted_line[MAXDATASIZE*2];
+    while (fgets(line, sizeof(line), file))
+    {
+        if (sscanf(line, "%d,\"%[^\"]\"", &id, titulo) == 2)
+        {
+            char formatted_line[MAXDATASIZE * 2];
             snprintf(formatted_line, sizeof(formatted_line), "ID: %d; Titulo: \"%s\"\n", id, titulo);
             send_message(new_fd, formatted_line, 1);
         }
@@ -371,13 +448,20 @@ int option4(int new_fd)
     return 0;
 }
 
+/**
+ * Handles client option 5: List full information for all movies.
+ *
+ * @param new_fd File descriptor for the client connection.
+ * @return 0 on success, -1 on error.
+ */
 int option5(int new_fd)
 {
     const char *msg = "Você escolheu a opção 5: Listar informações de todos os filmes.\n";
     send_message(new_fd, msg, 1);
 
     FILE *file = abrir_arquivo("filmes.csv", "r");
-    if (file == NULL) {
+    if (file == NULL)
+    {
         const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
         send_message(new_fd, error_msg, 0);
         printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
@@ -387,12 +471,14 @@ int option5(int new_fd)
     char line[MAXDATASIZE];
     int id;
     char titulo[MAXDATASIZE], genero[MAXDATASIZE], diretor[MAXDATASIZE], ano[MAXDATASIZE];
-    while (fgets(line, sizeof(line), file)) {
-        if (sscanf(line, "%d,\"%[^\"]\",\"%[^\"]\",\"%[^\"]\",\"%[^\"]\"", &id, titulo, genero, diretor, ano) == 5) {
-            char formatted_line[MAXDATASIZE*4+100];
+    while (fgets(line, sizeof(line), file))
+    {
+        if (sscanf(line, "%d,\"%[^\"]\",\"%[^\"]\",\"%[^\"]\",\"%[^\"]\"", &id, titulo, genero, diretor, ano) == 5)
+        {
+            char formatted_line[MAXDATASIZE * 4 + 100];
             snprintf(formatted_line, sizeof(formatted_line),
-                "ID: %d; Titulo: \"%s\"; Genero: \"%s\"; Diretor: \"%s\"; Ano: %s\n",
-                id, titulo, genero, diretor, ano);
+                     "ID: %d; Titulo: \"%s\"; Genero: \"%s\"; Diretor: \"%s\"; Ano: %s\n",
+                     id, titulo, genero, diretor, ano);
             send_message(new_fd, formatted_line, 1);
         }
     }
@@ -401,7 +487,14 @@ int option5(int new_fd)
     return 0;
 }
 
-int option6(int new_fd){
+/**
+ * Handles client option 6: List full information for a specific movie by its identifier.
+ *
+ * @param new_fd File descriptor for the client connection.
+ * @return 0 on success, -1 on error.
+ */
+int option6(int new_fd)
+{
     const char *msg = "Você escolheu a opção 6: Listar informações de um filme específico.\n\
     Por favor, digite o identificador do filme que deseja listar.\n";
     send_message(new_fd, msg, 0);
@@ -411,7 +504,8 @@ int option6(int new_fd){
         return -1;
 
     FILE *file = abrir_arquivo("filmes.csv", "r");
-    if (file == NULL) {
+    if (file == NULL)
+    {
         const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
         send_message(new_fd, error_msg, 0);
         printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
@@ -420,15 +514,18 @@ int option6(int new_fd){
 
     char line[MAXDATASIZE];
     int id;
-    while (fgets(line, sizeof(line), file)) {
-        if (sscanf(line, "%d,", &id) == 1 && id == n_identificador) {
+    while (fgets(line, sizeof(line), file))
+    {
+        if (sscanf(line, "%d,", &id) == 1 && id == n_identificador)
+        {
             // Extract movie details
             char titulo[MAXDATASIZE], genero[MAXDATASIZE], diretor[MAXDATASIZE], ano[MAXDATASIZE];
-            if (sscanf(line, "%*d,\"%[^\"]\",\"%[^\"]\",\"%[^\"]\",\"%[^\"]\"", titulo, genero, diretor, ano) == 4) {
+            if (sscanf(line, "%*d,\"%[^\"]\",\"%[^\"]\",\"%[^\"]\",\"%[^\"]\"", titulo, genero, diretor, ano) == 4)
+            {
                 char formatted_line[MAXDATASIZE * 4 + 100];
                 snprintf(formatted_line, sizeof(formatted_line),
-                    "ID: %d; Titulo: \"%s\"; Genero: \"%s\"; Diretor: \"%s\"; Ano: %s\n",
-                    id, titulo, genero, diretor, ano);
+                         "ID: %d; Titulo: \"%s\"; Genero: \"%s\"; Diretor: \"%s\"; Ano: %s\n",
+                         id, titulo, genero, diretor, ano);
                 send_message(new_fd, formatted_line, 1);
             }
             break;
@@ -439,6 +536,12 @@ int option6(int new_fd){
     return 0;
 }
 
+/**
+ * Handles client option 7: List all movies belonging to a specified genre.
+ *
+ * @param new_fd File descriptor for the client connection.
+ * @return 0 on success, -1 on error.
+ */
 int option7(int new_fd)
 {
     retorno_recv numbytes;
@@ -448,15 +551,16 @@ int option7(int new_fd)
 
     char *genero;
     numbytes = recv_message(new_fd, &genero);
-    if (numbytes.len == 0) {
+    if (numbytes.len == 0)
+    {
         printf("client disconnected on diretor\n");
         return -1;
     }
-    
 
     // Open the file for reading
     FILE *file = abrir_arquivo("filmes.csv", "r");
-    if (file == NULL) {
+    if (file == NULL)
+    {
         const char *error_msg = "Erro: Não foi possível abrir o arquivo de filmes. Problemas técnicos, consulte um ADM :(\n";
         send_message(new_fd, error_msg, 0);
         printf("Erro ao abrir o arquivo: %s\n", strerror(errno));
@@ -472,13 +576,15 @@ int option7(int new_fd)
     char line[MAXDATASIZE];
     char movie_title[MAXDATASIZE];
     char current_genero[MAXDATASIZE];
-    while (fgets(line, sizeof(line), file)) {
+    while (fgets(line, sizeof(line), file))
+    {
         if (sscanf(line, "%d,\"%[^\"]\",\"%[^\"]\",%*[^\n]", &id, movie_title, current_genero) == 3 &&
-            strstr(current_genero, genero)) {                
-                char formatted_line[MAXDATASIZE*2];
-                snprintf(formatted_line, sizeof(formatted_line), "ID: %d; Titulo: \"%s\"\n", id, movie_title);
-                send_message(new_fd, formatted_line, 1);
-                found++;
+            strstr(current_genero, genero))
+        {
+            char formatted_line[MAXDATASIZE * 2];
+            snprintf(formatted_line, sizeof(formatted_line), "ID: %d; Titulo: \"%s\"\n", id, movie_title);
+            send_message(new_fd, formatted_line, 1);
+            found++;
         }
     }
 
@@ -487,21 +593,26 @@ int option7(int new_fd)
 
     // Send the final message
     char *end_msg;
-    if (found > 0) {
+    if (found > 0)
         end_msg = "Fim da lista de filmes.\n";
-    } else {
+    else
         end_msg = "Nenhum filme com este gênero foi encontrado.\n";
-    }
     send_message(new_fd, end_msg, 1);
 
     return 0;
 }
 
+/**
+ * Handles client interaction in a dedicated thread.
+ * Presents the menu and dispatches the requested option.
+ *
+ * @param p_new_fd Pointer to the client connection file descriptor.
+ */
 void atender(int *p_new_fd)
 {
     int new_fd = *p_new_fd;
     int opcode = 0;
-    char resposta[MAXDATASIZE*2];
+    char resposta[MAXDATASIZE * 2];
     const char *msg = "\nOlá, cliente! Você se conectou ao servidor com sucesso!\n\
     Você pode realizar as seguintes operações:\n\
     (1) Cadastrar um novo filme\n\
@@ -514,8 +625,8 @@ void atender(int *p_new_fd)
     (8) Sair\n";
     size_t retcode;
     retorno_recv numbytes;
-    
-    while(opcode != 8)
+
+    while (opcode != 8)
     {
         retcode = send_message(new_fd, msg, 0);
 
@@ -523,16 +634,18 @@ void atender(int *p_new_fd)
 
         numbytes = recv_message(new_fd, &mensagem_recebida);
 
-        if (numbytes.len == 0) {
+        if (numbytes.len == 0)
+        {
             printf("client disconnected\n");
             opcode = 8; // Set opcode to 8 to exit the loop
             break;
         }
-        memset(resposta, 0, sizeof(resposta)); // anula a resposta
-        snprintf(resposta, sizeof(resposta), "recebido: %s", mensagem_recebida);     // adiciona cabeçalho na resposta
+        memset(resposta, 0, sizeof(resposta));                                   // anula a resposta
+        snprintf(resposta, sizeof(resposta), "recebido: %s", mensagem_recebida); // adiciona cabeçalho na resposta
 
         // tenta obter um numero de resposta logo no começo da string. Se não conseguir envia uma mensagem de erro
-        if (sscanf(mensagem_recebida, "%d", &opcode) != 1) {
+        if (sscanf(mensagem_recebida, "%d", &opcode) != 1)
+        {
             snprintf(resposta, sizeof(resposta), "Erro: comando inválido. Por favor, envie um número correspondente a uma operação.");
             send_message(new_fd, resposta, 0);
             opcode = 0; // reset opcode to avoid unintended operations
@@ -542,48 +655,48 @@ void atender(int *p_new_fd)
         free(mensagem_recebida);
 
         int result = 0;
-        switch(opcode)
+        switch (opcode)
         {
-            case 1:
-                // Cadastrar um novo filme
-                result = option1(new_fd);
-                break;
-            case 2:
-                // Adicionar um novo gênero a um filme
-                result = option2(new_fd);
-                break;
-            case 3:
-                // Remover um filme pelo identificador
-                result = option3(new_fd);
-                break;
-            case 4:
-                // Listar todos os títulos de filmes com seus identificadores
-                result = option4(new_fd);
-                break;
-            case 5:
-                // Listar informações de todos os filmes
-                result = option5(new_fd);
-                break;
-            case 6:
-                // Listar informações de um filme específico
-                result = option6(new_fd);
-                break;
-            case 7:
-                // Listar todos os filmes de um determinado gênero
-                result = option7(new_fd);
-                break;
-            case 8:
-                // Sair
-                strncpy(resposta, "Recebido '8', encerrando acesso.", sizeof(resposta) - 1);
-                resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
-                send_message(new_fd, resposta, 0);
-                printf("client disconnected\n");
-                break;
-            default:
-                strncpy(resposta, "O número enviado não corresponde a nenhuma operação válida. Por favor, envie um número correspondente a uma operação.", sizeof(resposta) - 1);
-                resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
-                send_message(new_fd, resposta, 0);
-                break;
+        case 1:
+            // Cadastrar um novo filme
+            result = option1(new_fd);
+            break;
+        case 2:
+            // Adicionar um novo gênero a um filme
+            result = option2(new_fd);
+            break;
+        case 3:
+            // Remover um filme pelo identificador
+            result = option3(new_fd);
+            break;
+        case 4:
+            // Listar todos os títulos de filmes com seus identificadores
+            result = option4(new_fd);
+            break;
+        case 5:
+            // Listar informações de todos os filmes
+            result = option5(new_fd);
+            break;
+        case 6:
+            // Listar informações de um filme específico
+            result = option6(new_fd);
+            break;
+        case 7:
+            // Listar todos os filmes de um determinado gênero
+            result = option7(new_fd);
+            break;
+        case 8:
+            // Sair
+            strncpy(resposta, "Recebido '8', encerrando acesso.", sizeof(resposta) - 1);
+            resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
+            send_message(new_fd, resposta, 0);
+            printf("client disconnected\n");
+            break;
+        default:
+            strncpy(resposta, "O número enviado não corresponde a nenhuma operação válida. Por favor, envie um número correspondente a uma operação.", sizeof(resposta) - 1);
+            resposta[sizeof(resposta) - 1] = '\0'; // Ensure null-termination
+            send_message(new_fd, resposta, 0);
+            break;
         }
         if (result == -1)
             break;
@@ -593,14 +706,20 @@ void atender(int *p_new_fd)
     free(p_new_fd);
 }
 
+/**
+ * Main server entry point.
+ * Sets up the TCP socket, listens for incoming connections, and spawns threads to handle each client.
+ *
+ * @return Exit status code.
+ */
 int main(void)
 {
-    int sockfd, new_fd;  // listen on sock_fd, new connection on new_fd
+    int sockfd, new_fd; // listen on sock_fd, new connection on new_fd
     struct addrinfo hints, *servinfo, *p;
     struct sockaddr_storage their_addr; // connector's address information
     socklen_t sin_size;
     struct sigaction sa;
-    int yes=1;
+    int yes = 1;
     char s[INET6_ADDRSTRLEN];
     int rv;
 
@@ -609,26 +728,31 @@ int main(void)
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE; // use my IP
 
-    if ((rv = getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0) {
+    if ((rv = getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0)
+    {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
         return 1;
     }
 
     // loop through all the results and bind to the first we can
-    for(p = servinfo; p != NULL; p = p->ai_next) {
+    for (p = servinfo; p != NULL; p = p->ai_next)
+    {
         if ((sockfd = socket(p->ai_family, p->ai_socktype,
-                p->ai_protocol)) == -1) {
+                             p->ai_protocol)) == -1)
+        {
             perror("server: socket");
             continue;
         }
 
         if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
-                sizeof(int)) == -1) {
+                       sizeof(int)) == -1)
+        {
             perror("setsockopt");
             exit(1);
         }
 
-        if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
+        if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1)
+        {
             close(sockfd);
             perror("server: bind");
             continue;
@@ -639,12 +763,14 @@ int main(void)
 
     freeaddrinfo(servinfo); // all done with this structure
 
-    if (p == NULL)  {
+    if (p == NULL)
+    {
         fprintf(stderr, "server: failed to bind\n");
         exit(1);
     }
 
-    if (listen(sockfd, BACKLOG) == -1) {
+    if (listen(sockfd, BACKLOG) == -1)
+    {
         perror("listen");
         exit(1);
     }
@@ -652,39 +778,42 @@ int main(void)
     sa.sa_handler = sigchld_handler; // reap all dead processes
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_RESTART;
-    if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+    if (sigaction(SIGCHLD, &sa, NULL) == -1)
+    {
         perror("sigaction");
         exit(1);
     }
 
     printf("server: waiting for connections...\n");
 
-    while(1) {  // main accept() loop
+    while (1) // main accept() loop
+    {
         sin_size = sizeof their_addr;
         new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
-        if (new_fd == -1) {
+        if (new_fd == -1)
+        {
             perror("accept");
             continue;
         }
 
         inet_ntop(their_addr.ss_family,
-            get_in_addr((struct sockaddr *)&their_addr),
-            s, sizeof s);
+                  get_in_addr((struct sockaddr *)&their_addr),
+                  s, sizeof s);
         printf("server: got connection from %s\n", s);
-
 
         pthread_t thread_id;
 
         int *fd_ptr = malloc(sizeof(int));
-        if (fd_ptr == NULL) {
+        if (fd_ptr == NULL)
+        {
             perror("malloc");
             close(new_fd);
             continue;
         }
 
-        
         *fd_ptr = new_fd;
-        if (pthread_create(&thread_id, NULL, (void *(*)(void *))atender, fd_ptr) != 0) {
+        if (pthread_create(&thread_id, NULL, (void *(*)(void *))atender, fd_ptr) != 0)
+        {
             perror("pthread_create");
             free(fd_ptr);
             close(new_fd);
