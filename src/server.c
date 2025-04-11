@@ -84,7 +84,7 @@ void fechar_arquivo(FILE *file, char *path)
 int get_valid_identifier(int fd)
 {
     int n_identificador;
-    int valid = 0;
+    bool valid = 0;
     while (!valid)
     {
         char *identificador;
@@ -154,12 +154,23 @@ int option1(int new_fd)
     send_message(new_fd, msg, 0);
 
     char *nome;
-    numbytes = recv_message(new_fd, &nome);
-    if (numbytes.len == -1)
+    bool valid = 0;
+    do
     {
-        printf("client disconnected\n");
-        return -1;
-    }
+        numbytes = recv_message(new_fd, &nome);
+        if (numbytes.len == -1)
+        {
+            printf("client disconnected\n");
+            return -1;
+        }
+        if (numbytes.len == 0)
+        {
+            const char *error_msg = "Erro: Nenhuma informação recebida. Por favor, envie o titulo do filme.\n";
+            send_message(new_fd, error_msg, 0);
+            continue;
+        }
+        valid = 1;
+    } while (!valid);
 
     // Get movie genre(s)
     const char *msg2 = "Beleza, agora digite o(s) gênero(s) do filme.\
@@ -167,33 +178,55 @@ int option1(int new_fd)
     send_message(new_fd, msg2, 0);
 
     char *genero;
-    numbytes = recv_message(new_fd, &genero);
-    if (numbytes.len == -1)
+    valid = 0;
+    do
     {
-        printf("client disconnected\n");
-        return -1;
-    }
+        numbytes = recv_message(new_fd, &genero);
+        if (numbytes.len == -1)
+        {
+            printf("client disconnected\n");
+            return -1;
+        }
+        if (numbytes.len == 0)
+        {
+            const char *error_msg = "Erro: Nenhuma informação recebida. Por favor, envie o(s) genero(s) do filme.\n";
+            send_message(new_fd, error_msg, 0);
+            continue;
+        }
+        valid = 1;
+    } while (!valid);
 
     // Get movie director
     const char *msg3 = "Ok, insira agora o diretor.\n";
     send_message(new_fd, msg3, 0);
 
     char *diretor;
-    numbytes = recv_message(new_fd, &diretor);
-    if (numbytes.len == -1)
+    valid = 0;
+    do
     {
-        printf("client disconnected\n");
-        return -1;
-    }
+        numbytes = recv_message(new_fd, &diretor);
+        if (numbytes.len == -1)
+        {
+            printf("client disconnected\n");
+            return -1;
+        }
+        if (numbytes.len == 0)
+        {
+            const char *error_msg = "Erro: Nenhuma informação recebida. Por favor, envie o diretor do filme.\n";
+            send_message(new_fd, error_msg, 0);
+            continue;
+        }
+        valid = 1;
+    } while (!valid);
 
     // Get movie year
     const char *msg4 = "E agora, qual foi o ano?\n";
     send_message(new_fd, msg4, 0);
 
-    int valido = 0;
+    valid = 0;
     int ano_int;
     char *ano;
-    while (!valido)
+    do
     {
         numbytes = recv_message(new_fd, &ano);
         if (numbytes.len == -1)
@@ -208,8 +241,8 @@ int option1(int new_fd)
             free(ano);
             continue;
         }
-        valido = 1;
-    }
+        valid = 1;
+    } while (!valid);
 
     FILE *file = abrir_arquivo("filmes.csv", "a+");
     if (file == NULL)
@@ -262,12 +295,23 @@ int option2(int new_fd)
     send_message(new_fd, msg2, 0);
 
     char *genero;
-    numbytes = recv_message(new_fd, &genero);
-    if (numbytes.len == -1)
+    bool valid = 0;
+    do
     {
-        printf("client disconnected\n");
-        return -1;
-    }
+        numbytes = recv_message(new_fd, &genero);
+        if (numbytes.len == -1)
+        {
+            printf("client disconnected\n");
+            return -1;
+        }
+        if (numbytes.len == 0)
+        {
+            const char *error_msg = "Erro: Nenhuma informação recebida. Por favor, envie um ou mais gêneros.\n";
+            send_message(new_fd, error_msg, 0);
+            continue;
+        }
+        valid = 1;
+    } while (!valid);
 
     // Open the file for reading
     FILE *file = abrir_arquivo("filmes.csv", "r");
@@ -550,12 +594,23 @@ int option7(int new_fd)
     send_message(new_fd, msg, 0);
 
     char *genero;
-    numbytes = recv_message(new_fd, &genero);
-    if (numbytes.len == -1)
+    bool valid = 0;
+    do
     {
-        printf("client disconnected\n");
-        return -1;
-    }
+        numbytes = recv_message(new_fd, &genero);
+        if (numbytes.len == -1)
+        {
+            printf("client disconnected\n");
+            return -1;
+        }
+        if (numbytes.len == 0)
+        {
+            const char *error_msg = "Erro: Nenhuma informação recebida. Por favor, envie um gênero.\n";
+            send_message(new_fd, error_msg, 0);
+            continue;
+        }
+        valid = 1;
+    } while (!valid);
 
     // Open the file for reading
     FILE *file = abrir_arquivo("filmes.csv", "r");
