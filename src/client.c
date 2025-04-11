@@ -50,9 +50,10 @@ void falar_com_server(int fd)
 
         // Prompt user for input
         printf("> ");
-        fgets(to_send, MAXDATASIZE, stdin);
-        to_send[strcspn(to_send, "\n")] = '\0';
+        if (fgets(to_send, MAXDATASIZE, stdin) == NULL) // EOF
+            exit(0);
 
+        to_send[strcspn(to_send, "\n")] = '\0';
         send_message(fd, to_send, 0);
     }
 }
