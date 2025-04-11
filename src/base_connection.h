@@ -1,23 +1,24 @@
 #ifndef BASE_CONNECTION_H
 #define BASE_CONNECTION_H
 
+#include <stdbool.h>
 #include <netinet/in.h>
 
 #define PORT "3490"      // the port users will be connecting to
 #define MAXDATASIZE 1000 // max number of bytes we can send at once
 
 /**
- * Structure used to return metadata about a received message.
+ * Structure used to represent the message header exchanged between client and server.
  *
  * Members:
- * - len: Length of the message received (not including null terminator).
- * - continuando: Flag indicating whether more messages are expected (1) or not (0).
+ * - len: Length of the message (including null terminator when sending, excluding when received).
+ * - continuando: Boolean flag indicating whether additional messages are expected (1) or not (0).
  */
-typedef struct retorno_recv
+typedef struct header
 {
     uint32_t len;
-    uint8_t continuando;
-} retorno_recv;
+    bool continuando;
+} header;
 
 /**
  * Extracts the IP address (IPv4 or IPv6) from a generic sockaddr structure.
@@ -36,30 +37,31 @@ void *get_in_addr(struct sockaddr *sa);
 void sigchld_handler(int s);
 
 /**
- * Sends a message to the specified socket with a custom protocol:
- * - 4-byte header containing the message length (including null terminator),
- * - 1-byte continuation flag ('1' or '0'),
+ * Sends a message to the given socket using a custom protocol:
+ *
+ * - full header (message length + continuation flag),
+ *
  * - message body (null-terminated string).
  *
- * @param fd Socket file descriptor.
- * @param msg Null-terminated string to send.
- * @param continuar If 1, indicates more messages will follow; if 0, this is the final message.
+ * @param fd Socket file descriptor to send the message through.
+ * @param msg Null-terminated message string to send.
+ * @param continuar Boolean indicating whether more messages will follow (1) or not (0).
  * @return Number of bytes sent from the message body (excluding header), or 0 on error.
  */
-size_t send_message(int fd, const char *buf, int continuar);
+size_t send_message(int fd, const char *buf, bool continuar);
 
 /**
- * Receives a message from the specified socket using the custom protocol.
- * Expects a 4-byte length header, a 1-byte continuation flag, and a message body.
- * Allocates memory for the received message and stores the pointer in `buf`.
+ * Receives a message from the socket according to the custom protocol:
  *
- * @param fd Socket file descriptor.
- * @param buf Pointer to a char pointer where the dynamically allocated message will be stored.
- * @return A `retorno_recv` struct containing:
- *         - the length of the message (excluding null terminator),
- *         - whether more messages are expected (continuando).
- *         Returns {0, 0} on failure.
+ * - Receives a full header (message length + continuation flag),
+ *
+ * - Allocates a buffer for the message body and reads it into memory.
+ *
+ * @param fd Socket file descriptor to receive the message from.
+ * @param buf Address of a pointer where the allocated message buffer will be stored.
+ * @return A `header` struct containing the actual length of the received message (excluding null terminator)
+ *         and the continuation flag. If an error occurs, `len` will be -1.
  */
-retorno_recv recv_message(int fd, char **buf);
+header recv_message(int fd, char **buf);
 
 #endif // BASE_CONNECTION_H

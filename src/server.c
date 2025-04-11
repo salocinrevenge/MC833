@@ -88,8 +88,8 @@ int get_valid_identifier(int fd)
     while (!valid)
     {
         char *identificador;
-        retorno_recv a = recv_message(fd, &identificador);
-        if (a.len == 0)
+        header a = recv_message(fd, &identificador);
+        if (a.len == -1)
         {
             printf("client disconnected\n");
             return -1;
@@ -147,7 +147,7 @@ int get_valid_identifier(int fd)
  */
 int option1(int new_fd)
 {
-    retorno_recv numbytes;
+    header numbytes;
 
     const char *msg = "Você escolheu a opção 1: Cadastrar um novo filme.\n\
     Por favor, digite o titulo do filme que deseja cadastrar.\n";
@@ -155,7 +155,7 @@ int option1(int new_fd)
 
     char *nome;
     numbytes = recv_message(new_fd, &nome);
-    if (numbytes.len == 0)
+    if (numbytes.len == -1)
     {
         printf("client disconnected\n");
         return -1;
@@ -168,7 +168,7 @@ int option1(int new_fd)
 
     char *genero;
     numbytes = recv_message(new_fd, &genero);
-    if (numbytes.len == 0)
+    if (numbytes.len == -1)
     {
         printf("client disconnected\n");
         return -1;
@@ -180,9 +180,9 @@ int option1(int new_fd)
 
     char *diretor;
     numbytes = recv_message(new_fd, &diretor);
-    if (numbytes.len == 0)
+    if (numbytes.len == -1)
     {
-        printf("client disconnected on diretor\n");
+        printf("client disconnected\n");
         return -1;
     }
 
@@ -196,9 +196,9 @@ int option1(int new_fd)
     while (!valido)
     {
         numbytes = recv_message(new_fd, &ano);
-        if (numbytes.len == 0)
+        if (numbytes.len == -1)
         {
-            printf("client disconnected on diretor\n");
+            printf("client disconnected\n");
             return -1;
         }
         if (sscanf(ano, "%d", &ano_int) != 1)
@@ -249,7 +249,7 @@ int option1(int new_fd)
  */
 int option2(int new_fd)
 {
-    retorno_recv numbytes;
+    header numbytes;
     const char *msg = "Você escolheu a opção 2: Adicionar um novo gênero a um filme.\n\
     Por favor, digite o identificador do filme que deseja adicionar o gênero.\n";
     send_message(new_fd, msg, 0);
@@ -263,9 +263,9 @@ int option2(int new_fd)
 
     char *genero;
     numbytes = recv_message(new_fd, &genero);
-    if (numbytes.len == 0)
+    if (numbytes.len == -1)
     {
-        printf("client disconnected on diretor\n");
+        printf("client disconnected\n");
         return -1;
     }
 
@@ -544,16 +544,16 @@ int option6(int new_fd)
  */
 int option7(int new_fd)
 {
-    retorno_recv numbytes;
+    header numbytes;
     const char *msg = "Você escolheu a opção 7: Listar todos os filmes de um determinado gênero.\n\
     Por favor, digite o gênero que você deseja buscar.\n";
     send_message(new_fd, msg, 0);
 
     char *genero;
     numbytes = recv_message(new_fd, &genero);
-    if (numbytes.len == 0)
+    if (numbytes.len == -1)
     {
-        printf("client disconnected on diretor\n");
+        printf("client disconnected\n");
         return -1;
     }
 
@@ -624,7 +624,7 @@ void atender(int *p_new_fd)
     (7) Listar todos os filmes de um determinado gênero\n\
     (8) Sair\n";
     size_t retcode;
-    retorno_recv numbytes;
+    header numbytes;
     int send_menu = 1;
 
     send_message(new_fd, welcome_msg, 1);
@@ -638,7 +638,7 @@ void atender(int *p_new_fd)
 
         numbytes = recv_message(new_fd, &mensagem_recebida);
 
-        if (numbytes.len == 0)
+        if (numbytes.len == -1)
         {
             printf("client disconnected\n");
             opcode = 8; // Set opcode to 8 to exit the loop

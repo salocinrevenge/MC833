@@ -28,8 +28,8 @@ void falar_com_server(int fd)
         {
             lendo = 0;
 
-            retorno_recv retorno = recv_message(fd, &received);
-            if (retorno.len == 0)
+            header retorno = recv_message(fd, &received);
+            if (retorno.len == -1)
                 exit(1);
 
             if (retorno.continuando == 1)

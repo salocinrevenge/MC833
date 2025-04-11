@@ -25,28 +25,19 @@ void sigchld_handler(int s)
     errno = saved_errno;
 }
 
-size_t send_message(int fd, const char *msg, int continuar)
+size_t send_message(int fd, const char *msg, bool continuar)
 {
     uint32_t len = strlen(msg) + 1; // include null terminator
     uint32_t len_net = htonl(len);  // convert to network byte order
 
-    // Send the 4-byte header
-    if (send(fd, &len_net, sizeof(len_net), 0) != sizeof(len_net))
+    header header;
+    header.len = len_net;
+    header.continuando = continuar;
+
+    // Send the header
+    if (send(fd, &header, sizeof(header), 0) != sizeof(header))
     {
-        printf("Error sending message length: %s\n", strerror(errno));
         perror("send message header");
-        return 0;
-    }
-
-    char continuando = '1';
-
-    if (continuar == 0)
-        continuando = '0';
-
-    // Send the continuation character
-    if (send(fd, &continuando, sizeof(continuando), 0) != sizeof(continuando))
-    {
-        perror("send continuation character");
         return 0;
     }
 
@@ -67,52 +58,39 @@ size_t send_message(int fd, const char *msg, int continuar)
     return total_sent;
 }
 
-retorno_recv recv_message(int fd, char **buf)
+header recv_message(int fd, char **buf)
 {
-    retorno_recv retornando;
-
-    retornando.len = 0;
-    retornando.continuando = 0;
+    header header;
+    header.len = 0;
+    header.continuando = 0;
 
     if (!buf)
-        return retornando;
+        return header;
 
-    // Receive 4-byte header
-    uint32_t len_net;
-    ssize_t bytes_received = recv(fd, &len_net, sizeof(len_net), MSG_WAITALL);
-    if (bytes_received != sizeof(len_net))
+    // Receive the header
+    ssize_t bytes_received = recv(fd, &header, sizeof(header), MSG_WAITALL);
+    if (bytes_received != sizeof(header))
     {
-        perror("recv length header");
-        return retornando;
+        perror("recv header");
+        header.len = -1; // indicate error
+        return header;
     }
+    header.len = ntohl(header.len);
 
-    // Receive the continuation character
-    char continuando;
-    ssize_t bytes_received2 = recv(fd, &continuando, sizeof(continuando), MSG_WAITALL);
-    if (bytes_received2 != sizeof(continuando))
-    {
-        perror("recv continue header");
-        return retornando;
-    }
-    if (continuando == '1')
-        retornando.continuando = 1;
-
-    uint32_t len = ntohl(len_net);
-
-    if (len == 0)
+    if (header.len == 0)
     {
         fprintf(stderr, "Warning: received message with length 0\n");
-        return retornando;
+        return header;
     }
 
     // Allocate a buffer for the message
-    *buf = malloc(len);
+    *buf = malloc(header.len);
     if (!*buf)
     {
         perror("malloc");
         // Drain the message from the socket to maintain protocol sync
         char drain_buf[1024];
-        size_t remaining = len;
+        size_t remaining = header.len;
         while (remaining > 0)
         {
             size_t to_read = (remaining > sizeof(drain_buf)) ? sizeof(drain_buf) : remaining;
@@ -121,26 +99,28 @@ retorno_recv recv_message(int fd, char **buf)
                 break;
             remaining -= drained;
         }
-        return retornando;
+        header.len = -1;
+        return header;
     }
 
     // Receive the message body
     size_t total_received = 0;
-    while (total_received < len)
+    while (total_received < header.len)
     {
-        size_t chunk_size = (len - total_received > MAXDATASIZE) ? MAXDATASIZE : (len - total_received);
+        size_t chunk_size = (header.len - total_received > MAXDATASIZE) ? MAXDATASIZE : (header.len - total_received);
         bytes_received = recv(fd, *buf + total_received, chunk_size, 0);
         if (bytes_received <= 0)
         {
             perror("recv message body");
             free(*buf);
             *buf = NULL;
-            return retornando;
+            header.len = -1;
+            return header;
         }
         total_received += bytes_received;
     }
 
-    (*buf)[len - 1] = '\0';
-    retornando.len = len - 1;
-    return retornando;
+    (*buf)[header.len - 1] = '\0';
+    header.len--;
+    return header;
 }
